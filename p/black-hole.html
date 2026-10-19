@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>חור שחור - בסגנון פוקי</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #fff;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            max-width: 100vw;
+            max-height: 100vh;
+            background: #1a1a2e;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            overflow: hidden;
+            border-radius: 12px;
+        }
+        canvas {
+            display: block;
+            background: #16213e;
+            cursor: none;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 22px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .score-box, .timer-box {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 2px solid #0f3460;
+        }
+        .timer-box {
+            color: #e94560;
+        }
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 15, 26, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+        .screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: #e94560;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        p {
+            font-size: 18px;
+            color: #b2bec3;
+            margin-bottom: 30px;
+            text-align: center;
+            max-width: 80%;
+        }
+        .btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: transform 0.1s, background 0.2s;
+            box-shadow: 0 5px 15px rgba(233, 69, 96, 0.4);
+        }
+        .btn:hover {
+            background: #ff6b81;
+            transform: scale(1.05);
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div class="ui-layer">
+        <div class="header">
+            <div class="score-box" id="scoreDisplay">ניקוד: 0</div>
+            <div class="timer-box" id="timerDisplay">זמן: 45</div>
+        </div>
+    </div>
+
+    <!-- מסך פתיחה -->
+    <div id="startScreen" class="screen">
+        <h1>חור שחור.io</h1>
+        <p>בלע כמה שיותר עצמים בעיר כדי לגדול, צבור נקודות והפוך לחור השחור הגדול ביותר לפני שהזמן נגמר!</p>
+        <button class="btn" onclick="startGame()">התחל משחק</button>
+    </div>
+
+    <!-- מסך סיום -->
+    <div id="gameOverScreen" class="screen hidden">
+        <h1>הזמן נגמר!</h1>
+        <p id="finalScoreText">הניקוד הסופי שלך הוא: 0</p>
+        <button class="btn" onclick="startGame()">שחק שוב</button>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let gameRunning = false;
+let score = 0;
+let timeLeft = 45;
+let timerInterval;
+
+// הגדרת החור השחור של השחקן
+let player = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    radius: 25,
+    speed: 0.12
+};
+
+// רשימת עצמים בלוח (קוביות, עצים, מכוניות, בתים)
+let items = [];
+const itemTypes = [
+    { name: 'קוביה קטנה', radius: 12, points: 10, color: '#00b4d8' },
+    { name: 'עץ', radius: 18, points: 20, color: '#2a9d8f' },
+    { name: 'מכונית', radius: 26, points: 40, color: '#f77f00' },
+    { name: 'בית קטן', radius: 38, points: 80, color: '#d62828' },
+    { name: 'בניין ענק', radius: 55, points: 150, color: '#7209b7' }
+];
+
+// מעקב אחרי מיקום העכבר/מגע
+let mouseX = player.x;
+let mouseY = player.y;
+
+window.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    if(e.touches.length > 0) {
+        mouseX = e.touches[0].clientX - rect.left;
+        mouseY = e.touches[0].clientY - rect.top;
+    }
+}, {passive: true});
+
+function spawnItems() {
+    items = [];
+    for (let i = 0; i < 45; i++) {
+        addNewItem();
+    }
+}
+
+function addNewItem() {
+    let availableTypes = itemTypes.filter(t => t.radius < player.radius * 2.5);
+    if(availableTypes.length === 0) availableTypes = [itemTypes[0]];
+    
+    const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+    
+    items.push({
+        x: Math.random() * (canvas.width - 100) + 50,
+        y: Math.random() * (canvas.height - 100) + 50,
+        radius: type.radius,
+        points: type.points,
+        color: type.color,
+        name: type.name,
+        scale: 1,
+        alpha: 1
+    });
+}
+
+function startGame() {
+    document.getElementById('startScreen').classList.add('hidden');
+    document.getElementById('gameOverScreen').classList.add('hidden');
+    
+    score = 0;
+    timeLeft = 45;
+    player.radius = 25;
+    player.x = canvas.width / 2;
+    player.y = canvas.height / 2;
+    mouseX = player.x;
+    mouseY = player.y;
+    
+    document.getElementById('scoreDisplay').innerText = `ניקוד: ${score}`;
+    document.getElementById('timerDisplay').innerText = `זמן: ${timeLeft}`;
+    
+    spawnItems();
+    gameRunning = true;
+    
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timerDisplay').innerText = `זמן: ${timeLeft}`;
+        if (timeLeft <= 0) {
+            endGame();
+        }
+    }, 1000);
+}
+
+function endGame() {
+    gameRunning = false;
+    clearInterval(timerInterval);
+    document.getElementById('finalScoreText').innerText = `הניקוד הסופי שלך הוא: ${score}`;
+    document.getElementById('gameOverScreen').classList.remove('hidden');
+}
+
+// לופ המשחק המרכזי
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (gameRunning) {
+        // תנועה חלקה לעבר העכבר
+        player.x += (mouseX - player.x) * player.speed;
+        player.y += (mouseY - player.y) * player.speed;
+        
+        // הגבלה לגבולות המסך
+        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+        
+        // עדכון וציור פריטים
+        for (let i = items.length - 1; i >= 0; i--) {
+            let item = items[i];
+            
+            let dist = Math.hypot(player.x - item.x, player.y - item.y);
+            if (dist < player.radius && player.radius > item.radius * 0.7) {
+                item.scale -= 0.1;
+                item.alpha -= 0.1;
+                
+                if (item.scale <= 0) {
+                    score += item.points;
+                    document.getElementById('scoreDisplay').innerText = `ניקוד: ${score}`;
+                    player.radius += item.points * 0.04;
+                    
+                    items.splice(i, 1);
+                    addNewItem();
+                    continue;
+                }
+            }
+            
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, item.alpha);
+            ctx.translate(item.x, item.y);
+            ctx.scale(item.scale, item.scale);
+            
+            ctx.fillStyle = item.color;
+            ctx.beginPath();
+            ctx.roundRect(-item.radius, -item.radius, item.radius * 2, item.radius * 2, 6);
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#fff';
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        // ציור החור השחור
+        ctx.save();
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#e94560';
+        
+        ctx.fillStyle = '#e94560';
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.radius + 3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#050508';
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
+        
+        // ציור סמן עכבר
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.beginPath();
+        ctx.arc(mouseX, mouseY, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+
+</body>
+</html>

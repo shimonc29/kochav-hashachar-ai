@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מחשבון מודרני</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Heebo', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts: Heebo for beautiful Hebrew -->
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Heebo', sans-serif;
+        }
+        /* Custom scrollbar for history */
+        .history-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .history-scroll::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+        }
+        .history-scroll::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 8px;
+        }
+        .history-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.25);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-slate-900 min-h-screen flex items-center justify-center p-4 transition-colors duration-500">
+
+    <!-- Main Container -->
+    <div class="w-full max-w-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-700/50 overflow-hidden transition-all duration-300">
+        
+        <!-- Header & Theme Toggle -->
+        <div class="flex items-center justify-between px-6 pt-5 pb-2">
+            <div class="flex items-center space-x-2 space-x-reverse">
+                <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mr-2">מחשבון חכם</span>
+            </div>
+            <button id="themeToggle" class="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200/60 dark:hover:bg-gray-700/60 transition-colors focus:outline-none" title="החלף מצב תצוגה">
+                <i id="themeIcon" class="fa-solid fa-moon text-lg"></i>
+            </button>
+        </div>
+
+        <!-- Display Section -->
+        <div class="px-6 py-4 flex flex-col justify-end min-h-[140px] text-right bg-gray-50/50 dark:bg-gray-900/40 border-y border-gray-100 dark:border-gray-700/50">
+            <!-- Expression / History preview -->
+            <div id="expression" class="text-sm font-medium text-gray-400 dark:text-gray-500 h-6 truncate tracking-wide"></div>
+            <!-- Main Result Output -->
+            <div id="display" class="text-4xl sm:text-5xl font-bold text-gray-800 dark:text-white tracking-tight overflow-x-auto whitespace-nowrap py-1">0</div>
+        </div>
+
+        <!-- Calculator Body & History Tabs -->
+        <div class="p-6">
+            <!-- Tabs Switcher -->
+            <div class="flex bg-gray-100 dark:bg-gray-700/50 p-1 rounded-2xl mb-5">
+                <button id="calcTabBtn" onclick="switchTab('calc')" class="flex-1 py-2 text-sm font-semibold rounded-xl bg-white dark:bg-gray-600 text-indigo-600 dark:text-white shadow-sm transition-all duration-200">מחשבון</button>
+                <button id="historyTabBtn" onclick="switchTab('history')" class="flex-1 py-2 text-sm font-semibold rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white transition-all duration-200">היסטוריה (<span id="historyCount">0</span>)</button>
+            </div>
+
+            <!-- Calculator Panel -->
+            <div id="calcPanel" class="grid grid-cols-4 gap-3">
+                <!-- Row 1 -->
+                <button onclick="clearAll()" class="col-span-1 py-3.5 bg-red-50 dark:bg-red-950/40 text-red-500 dark:text-red-400 font-bold rounded-2xl hover:bg-red-100 dark:hover:bg-red-900/40 active:scale-95 transition-all shadow-sm">C</button>
+                <button onclick="backspace()" class="col-span-1 py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold rounded-2xl hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm flex items-center justify-content"><i class="fa-solid fa-delete-left mx-auto"></i></button>
+                <button onclick="appendOperator('%')" class="col-span-1 py-3.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 font-bold rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 active:scale-95 transition-all shadow-sm">%</button>
+                <button onclick="appendOperator('/')" class="col-span-1 py-3.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 font-bold rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 active:scale-95 transition-all shadow-sm">÷</button>
+
+                <!-- Row 2 -->
+                <button onclick="appendNumber('7')" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">7</button>
+                <button onclick="appendNumber('8')" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">8</button>
+                <button onclick="appendNumber('9')" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">9</button>
+                <button onclick="appendOperator('*')" class="py-3.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 font-bold rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 active:scale-95 transition-all shadow-sm">×</button>
+
+                <!-- Row 3 -->
+                <button onclick="appendNumber('4')" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">4</button>
+                <button onclick="appendNumber('5')" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">5</button>
+                <button onclick="appendNumber('6')" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">6</button>
+                <button onclick="appendOperator('-')" class="py-3.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 font-bold rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 active:scale-95 transition-all shadow-sm">-</button>
+
+                <!-- Row 4 -->
+                <button onclick="appendNumber('1')" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">1</button>
+                <button onclick="appendNumber('2')" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">2</button>
+                <button onclick="appendNumber('3')" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">3</button>
+                <button onclick="appendOperator('+')" class="py-3.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 font-bold rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 active:scale-95 transition-all shadow-sm">+</button>
+
+                <!-- Row 5 -->
+                <button onclick="appendNumber('0')" class="col-span-2 py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">0</button>
+                <button onclick="appendDot()" class="py-3.5 bg-white dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 font-semibold rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-600 active:scale-95 transition-all shadow-sm border border-gray-100 dark:border-gray-600">.</button>
+                <button onclick="calculate()" class="py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-2xl hover:opacity-95 active:scale-95 transition-all shadow-md shadow-indigo-500/25">=</button>
+            </div>
+
+            <!-- History Panel -->
+            <div id="historyPanel" class="hidden flex flex-col h-[280px]">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-gray-400">חישובים אחרונים</span>
+                    <button onclick="clearHistory()" class="text-xs text-red-500 hover:text-red-600 font-medium transition-colors">נקה היסטוריה</button>
+                </div>
+                <div id="historyList" class="flex-1 overflow-y-auto history-scroll space-y-2 pr-1">
+                    <!-- Dynamic history items will be inserted here -->
+                    <div id="emptyHistory" class="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 text-sm">
+                        <i class="fa-solid fa-clock-rotate-left text-3xl mb-2 opacity-40"></i>
+                        אין היסטוריית חישובים עדיין
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Notification/Message Box (No alert() used) -->
+    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-gray-900/90 dark:bg-white/90 text-white dark:text-gray-900 px-4 py-2.5 rounded-xl shadow-xl text-sm font-medium opacity-0 pointer-events-none transition-all duration-300 z-50 flex items-center space-x-2 space-x-reverse">
+        <i class="fa-solid fa-circle-info text-indigo-400"></i>
+        <span id="toastMessage">הודעה</span>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        let currentInput = '0';
+        let expression = '';
+        let history = [];
+        let resetScreen = false;
+
+        const displayEl = document.getElementById('display');
+        const expressionEl = document.getElementById('expression');
+        const historyListEl = document.getElementById('historyList');
+        const historyCountEl = document.getElementById('historyCount');
+        const emptyHistoryEl = document.getElementById('emptyHistory');
+
+        // Number Input
+        function appendNumber(num) {
+            if (currentInput === '0' || resetScreen) {
+                currentInput = num;
+                resetScreen = false;
+            } else {
+                currentInput += num;
+            }
+            updateDisplay();
+        }
+
+        // Decimal Point Input
+        function appendDot() {
+            if (resetScreen) {
+                currentInput = '0.';
+                resetScreen = false;
+                updateDisplay();
+                return;
+            }
+            // Prevent multiple dots in the current number segment
+            const parts = currentInput.split(/[\+\-\*\/\%]/);
+            const lastPart = parts[parts.length - 1];
+            if (!lastPart.includes('.')) {
+                currentInput += '.';
+                updateDisplay();
+            }
+        }
+
+        // Operator Input
+        function appendOperator(op) {
+            if (resetScreen) {
+                resetScreen = false;
+            }
+            // Prevent consecutive operators
+            const lastChar = currentInput.slice(-1);
+            if (['+', '-', '*', '/', '%'].includes(lastChar)) {
+                currentInput = currentInput.slice(0, -1) + op;
+            } else {
+                currentInput += op;
+            }
+            updateDisplay();
+        }
+
+        // Clear All (C)
+        function clearAll() {
+            currentInput = '0';
+            expression = '';
+            expressionEl.textContent = '';
+            updateDisplay();
+        }
+
+        // Backspace (Delete last char)
+        function backspace() {
+            if (currentInput.length === 1 || resetScreen) {
+                currentInput = '0';
+                resetScreen = false;
+            } else {
+                currentInput = currentInput.slice(0, -1);
+            }
+            updateDisplay();
+        }
+
+        // Calculate Result
+        function calculate() {
+            if (!currentInput || currentInput === '0') return;
+            
+            // Format for JS eval safety & substitution
+            let evalString = currentInput
+                .replace(/×/g, '*')
+                .replace(/÷/g, '/');
+
+            try {
+                // Safe basic evaluation
+                let result = Function('"use strict";return (' + evalString + ')')();
+                
+                if (!isFinite(result)) {
+                    showToast('לא ניתן לחלק באפס');
+                    return;
+                }
+
+                // Round to avoid floating point precision issues
+                result = Math.round(result * 100000000) / 100000000;
+
+                // Save to history
+                const calculationRecord = {
+                    expr: currentInput,
+                    res: result,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                };
+                history.unshift(calculationRecord);
+                updateHistoryUI();
+
+                expression = currentInput + ' =';
+                expressionEl.textContent = expression;
+                currentInput = String(result);
+                resetScreen = true;
+                updateDisplay();
+
+            } catch (error) {
+                showToast('ביטוי שגוי');
+            }
+        }
+
+        // Update main screen display
+        function updateDisplay() {
+            displayEl.textContent = currentInput;
+            // Scroll to left to show latest input if overflowed
+            displayEl.scrollLeft = displayEl.scrollWidth;
+        }
+
+        // Tab Switching
+        function switchTab(tab) {
+            const calcTabBtn = document.getElementById('calcTabBtn');
+            const historyTabBtn = document.getElementById('historyTabBtn');
+            const calcPanel = document.getElementById('calcPanel');
+            const historyPanel = document.getElementById('historyPanel');
+
+            if (tab === 'calc') {
+                calcTabBtn.className = "flex-1 py-2 text-sm font-semibold rounded-xl bg-white dark:bg-gray-600 text-indigo-600 dark:text-white shadow-sm transition-all duration-200";
+                historyTabBtn.className = "flex-1 py-2 text-sm font-semibold rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white transition-all duration-200";
+                calcPanel.classList.remove('hidden');
+                historyPanel.classList.add('hidden');
+            } else {
+                historyTabBtn.className = "flex-1 py-2 text-sm font-semibold rounded-xl bg-white dark:bg-gray-600 text-indigo-600 dark:text-white shadow-sm transition-all duration-200";
+                calcTabBtn.className = "flex-1 py-2 text-sm font-semibold rounded-xl text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white transition-all duration-200";
+                historyPanel.classList.remove('hidden');
+                calcPanel.classList.add('hidden');
+            }
+        }
+
+        // Update History UI
+        function updateHistoryUI() {
+            historyCountEl.textContent = history.length;
+            if (history.length === 0) {
+                historyListEl.innerHTML = `
+                    <div id="emptyHistory" class="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 text-sm">
+                        <i class="fa-solid fa-clock-rotate-left text-3xl mb-2 opacity-40"></i>
+                        אין היסטוריית חישובים עדיין
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            history.forEach((item, index) => {
+                html += `
+                    <div onclick="useHistoryItem(${index})" class="p-3 rounded-2xl bg-white/60 dark:bg-gray-700/50 hover:bg-white dark:hover:bg-gray-700 border border-gray-100 dark:border-gray-600/50 cursor-pointer transition-all flex items-center justify-between group">
+                        <div>
+                            <div class="text-xs text-gray-400 dark:text-gray-400">${item.expr}</div>
+                            <div class="text-lg font-bold text-gray-800 dark:text-white">= ${item.res}</div>
+                        </div>
+                        <span class="text-xs text-gray-400 group-hover:text-indigo-500 transition-colors">${item.time}</span>
+                    </div>
+                `;
+            });
+            historyListEl.innerHTML = html;
+        }
+
+        // Clear History
+        function clearHistory() {
+            history = [];
+            updateHistoryUI();
+            showToast('ההיסטוריה נוקתה בהצלחה');
+        }
+
+        // Use history item back into calculator
+        function useHistoryItem(index) {
+            currentInput = String(history[index].res);
+            expression = history[index].expr + ' =';
+            expressionEl.textContent = expression;
+            updateDisplay();
+            switchTab('calc');
+        }
+
+        // Custom Toast Notification replacement for alert()
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            toastMessage.textContent = message;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+
+        // Dark / Light Theme Toggle functionality
+        const themeToggleBtn = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const htmlElement = document.documentElement;
+
+        // Check initial theme preference
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            htmlElement.classList.add('dark');
+            themeIcon.className = "fa-solid fa-sun text-lg";
+        } else {
+            htmlElement.classList.remove('dark');
+            themeIcon.className = "fa-solid fa-moon text-lg";
+        }
+
+        themeToggleBtn.addEventListener('click', () => {
+            if (htmlElement.classList.contains('dark')) {
+                htmlElement.classList.remove('dark');
+                localStorage.theme = 'light';
+                themeIcon.className = "fa-solid fa-moon text-lg";
+            } else {
+                htmlElement.classList.add('dark');
+                localStorage.theme = 'dark';
+                themeIcon.className = "fa-solid fa-sun text-lg";
+            }
+        });
+
+        // Keyboard Support for seamless desktop usage
+        window.addEventListener('keydown', (e) => {
+            if ((e.key >= '0' && e.key <= '9') || e.key === '.') {
+                appendNumber(e.key);
+            } else if (['+', '-', '*', '/'].includes(e.key)) {
+                appendOperator(e.key);
+            } else if (e.key === 'Enter' || e.key === '=') {
+                e.preventDefault();
+                calculate();
+            } else if (e.key === 'Backspace') {
+                backspace();
+            } else if (e.key === 'Escape') {
+                clearAll();
+            }
+        });
+    </script>
+</body>
+</html>

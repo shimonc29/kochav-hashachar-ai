@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מיינקראפט 3D אמיתי: 2 דקות לילה, זומבים, שולחן עבודה מדויק ומנהרות ענק</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Rubik', sans-serif;
+            user-select: none;
+            background-color: #000;
+        }
+        #game-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.85);
+            box-shadow: 0 0 2px #000;
+        }
+        #crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+
+        .mc-slot {
+            width: 52px;
+            height: 52px;
+            background-color: rgba(110, 110, 110, 0.82);
+            border: 3px solid;
+            border-color: #373737 #FFF #FFF #373737;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: transform 0.1s, background-color 0.1s;
+            cursor: pointer;
+        }
+        .mc-slot:hover {
+            background-color: rgba(155, 155, 155, 0.9);
+        }
+        .mc-slot.active {
+            border-color: #FFD700;
+            box-shadow: 0 0 12px rgba(255, 215, 0, 0.95);
+            transform: scale(1.08);
+            z-index: 2;
+            background-color: rgba(180, 180, 180, 0.95);
+        }
+        .craft-grid-slot {
+            width: 48px;
+            height: 48px;
+            background-color: rgba(60, 60, 60, 0.85);
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            font-size: 20px;
+        }
+        .craft-grid-slot:hover {
+            background-color: rgba(85, 85, 85, 0.9);
+            border-color: #FFD700;
+        }
+        .mc-panel {
+            background-color: rgba(24, 24, 28, 0.86);
+            border: 3px solid #555;
+            backdrop-filter: blur(6px);
+        }
+        #damage-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, transparent 45%, rgba(220, 0, 0, 0.7) 100%);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            z-index: 5;
+        }
+        #water-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(14, 90, 210, 0.42);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.15s;
+            z-index: 4;
+        }
+        #portal-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.5), rgba(88, 28, 135, 0.85));
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.35s;
+            z-index: 6;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="damage-overlay"></div>
+    <div id="water-overlay"></div>
+    <div id="portal-overlay"></div>
+    <div id="crosshair"></div>
+
+    <!-- מד חיים של הדרקון -->
+    <div id="boss-bar-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-20 hidden flex-col items-center w-80 md:w-96 pointer-events-none">
+        <div class="text-purple-300 font-black text-base drop-shadow mb-1 flex items-center gap-2">
+            <span>🐉 דרקון האנדר (Ender Dragon)</span>
+            <span id="boss-hp-text" class="text-xs text-white bg-purple-900/80 px-2 py-0.5 rounded-full">250/250</span>
+        </div>
+        <div class="w-full h-4 bg-gray-900 border-2 border-purple-400 rounded-full overflow-hidden shadow-lg">
+            <div id="boss-hp-fill" class="h-full bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-500 transition-all duration-150" style="width: 100%;"></div>
+        </div>
+    </div>
+
+    <!-- ממשק עליון -->
+    <div class="fixed top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-20">
+        
+        <div class="mc-panel p-3 rounded-xl text-white pointer-events-auto shadow-lg flex flex-col gap-1.5 min-w-[275px]">
+            <div class="flex items-center justify-between border-b border-gray-600 pb-2">
+                <div class="flex items-center gap-2">
+                    <span id="phase-icon" class="text-2xl">☀️</span>
+                    <div>
+                        <div id="phase-text" class="font-bold text-sm text-yellow-300">בוקר (2 דקות)</div>
+                        <div id="timer-text" class="text-xs text-gray-300 font-mono">02:00 נותרו</div>
+                    </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <button id="toggle-time-btn" class="bg-indigo-600 hover:bg-indigo-500 text-xs px-2 py-1 rounded font-bold shadow transition">
+                        דלג ללילה 🌙
+                    </button>
+                    <span id="dimension-badge" class="text-[11px] text-center bg-green-700/80 px-2 py-0.5 rounded font-bold">🌍 עולם רגיל</span>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-0.5">
+                <span class="text-xs font-bold text-red-300">חיים:</span>
+                <div id="hearts-container" class="flex gap-0.5 text-sm leading-none tracking-tighter"></div>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-amber-300">אוכל:</span>
+                <div id="hunger-container" class="flex gap-0.5 text-sm leading-none tracking-tighter"></div>
+            </div>
+
+            <div id="oxygen-row" class="hidden items-center justify-between bg-blue-950/70 px-2 py-1 rounded border border-blue-400">
+                <span class="text-xs font-bold text-cyan-300">חמצן במים:</span>
+                <div id="bubbles-container" class="flex gap-0.5 text-sm leading-none"></div>
+            </div>
+
+            <div class="text-[11px] text-gray-300 border-t border-gray-700 pt-1.5 space-y-0.5">
+                <div class="flex justify-between">
+                    <span>מיקום: <b id="coords-text" class="text-white font-mono">0, 0, 0</b></span>
+                    <span>חיסולים: <b id="kill-count" class="text-green-400">0</b></span>
+                </div>
+                <div class="text-amber-300">🛡️ שריון: <b id="armor-status" class="text-white">אין</b> | מגן: <b id="shield-status" class="text-cyan-400">לא</b></div>
+                <div class="text-purple-300">🧭 חיפוש פורטלים בעולם (חפש במרחק מה בסביבה!)</div>
+            </div>
+
+            <div class="flex gap-1.5 pt-1">
+                <button id="open-inv-btn" class="flex-1 bg-amber-600 hover:bg-amber-500 text-xs py-1.5 rounded font-bold shadow transition">
+                    🎒 תיק ושולחן עבודה (E)
+                </button>
+            </div>
+        </div>
+
+        <div id="toast-container" class="flex flex-col gap-1 items-center mt-12 md:mt-0"></div>
+
+        <div class="mc-panel p-3 rounded-xl text-white text-xs hidden lg:block shadow-lg leading-relaxed max-w-xs">
+            <div class="font-bold text-yellow-400 mb-1 border-b border-gray-600 pb-1">מדריך למשחק אמיתי:</div>
+            <div><kbd class="bg-gray-700 px-1.5 py-0.5 rounded">WASD</kbd> תנועה | <kbd class="bg-gray-700 px-1.5 py-0.5 rounded">רווח</kbd> קפיצה</div>
+            <div><kbd class="bg-gray-700 px-1.5 py-0.5 rounded">E</kbd> פתיחת תיק ושולחן יצירה (3x3 מדויק)</div>
+            <div><kbd class="bg-gray-700 px-1.5 py-0.5 rounded">קליק שמאלי</kbd> חציבה והילחמות בזומבים</div>
+            <div class="text-yellow-300 mt-1">☀️ <b>לילה אחרי 2 דקות:</b> בבוקר אין מובים כלל. אחרי 2 דקות יורד לילה שבו זומבים יוצאים ונשרפים בשחר!</div>
+            <div class="text-cyan-300">💎 <b>עולם אמיתי ומנהרות:</b> חפש יהלומים עמוק באדמה וגלה את פורטל הנדר והאנד הנסתרים!</div>
+        </div>
+    </div>
+
+    <!-- חלון תיק ושולחן עבודה עם סידור בלוקים (Crafting Grid) -->
+    <div id="inventory-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden items-center justify-center z-40 p-4">
+        <div class="mc-panel rounded-2xl p-6 max-w-4xl w-full text-white shadow-2xl border-2 border-amber-500 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-gray-600 pb-3 mb-4">
+                <div class="flex items-center gap-3">
+                    <span class="text-3xl">🛠️</span>
+                    <div>
+                        <h2 class="text-2xl font-black text-amber-400">שולחן עבודה ותיק חפצים</h2>
+                        <p class="text-xs text-gray-300">סדר בלוקים במטריצת היצירה (3x3) בדיוק כמו במיינקראפט אמיתי, או בחר מתכון מוכן!</p>
+                    </div>
+                </div>
+                <button id="close-inv-btn" class="bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-1.5 rounded-lg shadow cursor-pointer">
+                    סגור (E) ✖
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- צד ימין: מטריצת שולחן העבודה 3x3 -->
+                <div class="bg-gray-900/80 p-4 rounded-xl border border-gray-700 flex flex-col items-center">
+                    <h3 class="font-bold text-sm text-amber-300 mb-3">🪑 שולחן יצירה (סדר פריטים מדויק):</h3>
+                    <div id="crafting-grid-3x3" class="grid grid-cols-3 gap-2 mb-4">
+                        <!-- 9 סלוטים ליצירה -->
+                    </div>
+                    <div class="flex items-center gap-3 w-full justify-between bg-black/40 p-2.5 rounded-lg border border-gray-700">
+                        <span class="text-xs text-gray-300">תוצאה:</span>
+                        <div id="craft-output-slot" class="w-12 h-12 bg-gray-800 border-2 border-yellow-500 rounded flex items-center justify-center text-2xl cursor-pointer hover:bg-gray-700">❓</div>
+                        <button id="craft-btn-action" class="bg-green-600 hover:bg-green-500 text-white font-bold px-4 py-2 rounded-lg text-xs shadow cursor-pointer">
+                            צור פריט!
+                        </button>
+                    </div>
+                </div>
+
+                <!-- אמצע: רשימת מתכונים מלאה -->
+                <div class="bg-gray-900/80 p-4 rounded-xl border border-gray-700">
+                    <h3 class="font-bold text-sm text-yellow-300 mb-2">📜 מתכוני יצירה במיינקראפט:</h3>
+                    <div id="crafting-recipes-list" class="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
+                        <!-- נוצר דינמית -->
+                    </div>
+                </div>
+
+                <!-- צד שמאל: התיק המלא של השחקן -->
+                <div class="bg-gray-900/80 p-4 rounded-xl border border-gray-700">
+                    <h3 class="font-bold text-sm text-gray-200 mb-2">🎒 התיק שלך (לחץ להעברה לסרגל הכלים):</h3>
+                    <div id="full-inventory-grid" class="grid grid-cols-4 gap-2 max-h-72 overflow-y-auto pr-1">
+                        <!-- נוצר דינמית -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- סרגל כלים תחתון (Hotbar) -->
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-auto">
+        <div id="selected-item-name" class="bg-black/80 text-white px-3.5 py-1 rounded-full text-sm font-bold border border-gray-500 shadow">
+            חרב ומכוש ⚔️⛏️
+        </div>
+        <div id="hotbar" class="flex gap-1.5 bg-black/65 p-2 rounded-xl border-2 border-gray-500 shadow-2xl">
+            <!-- נוצר דינמית -->
+        </div>
+    </div>
+
+    <!-- מסך פתיחה -->
+    <div id="overlay-screen" class="fixed inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center z-30 text-white p-6 text-center">
+        <div class="max-w-xl w-full bg-gray-900 border-2 border-green-500 rounded-2xl p-7 shadow-2xl">
+            <h1 class="text-3xl md:text-5xl font-black text-green-400 mb-2 tracking-wide drop-shadow">MINECRAFT 3D REAL</h1>
+            <p class="text-gray-300 mb-4 text-xs md:text-sm">עולם מיינקראפט אמיתי ועצום עם מנהרות, זומבים בלילה שנשרפים בבוקר, שולחן עבודה 3x3 ומד סביבה מלא!</p>
+            
+            <div class="bg-gray-800/90 rounded-xl p-4 text-right text-xs space-y-2 mb-6 border border-gray-700 leading-relaxed">
+                <div class="flex items-center gap-2">☀️ <span><b>בוקר של 2 דקות ולילה:</b> בבוקר הכל שקט ומואר. אחרי 2 דקות יורד לילה שבו זומבים יוצאים לתקוף, ובשחר הם נשרפים!</span></div>
+                <div class="flex items-center gap-2">🛠️ <span><b>שולחן עבודה (מקש E):</b> סדר בלוקים במטריצה ליצירת שריון ברזל/יהלום, מגן יד וכלים בדיוק כמו במשחק האמיתי.</span></div>
+                <div class="flex items-center gap-2">💎 <span><b>עולם שלם ומנהרות:</b> חצוב עמוק באדמה למציאת יהלומים וזהב, וצא לחקור למציאת פורטל הנדר והאנד!</span></div>
+            </div>
+
+            <button id="start-btn" class="w-full py-4 bg-green-600 hover:bg-green-500 active:scale-95 text-white font-black text-xl rounded-xl shadow-lg shadow-green-600/30 transition cursor-pointer">
+                התחל לשחק במיינקראפט האמיתי! 🎮
+            </button>
+        </div>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+
+    <script>
+        const SoundFX = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            play(type) {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                if (type === 'hitBlock') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(160, now);
+                    osc.frequency.exponentialRampToValueAtTime(60, now + 0.06);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.06);
+                    osc.start(now);
+                    osc.stop(now + 0.06);
+                } else if (type === 'breakBlock') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.exponentialRampToValueAtTime(45, now + 0.16);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.16);
+                    osc.start(now);
+                    osc.stop(now + 0.16);
+                } else if (type === 'pickup') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(520, now);
+                    osc.frequency.exponentialRampToValueAtTime(980, now + 0.11);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.11);
+                    osc.start(now);
+                    osc.stop(now + 0.11);
+                } else if (type === 'hitMob') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(280, now);
+                    osc.frequency.exponentialRampToValueAtTime(70, now + 0.12);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+                    osc.start(now);
+                    osc.stop(now + 0.12);
+                } else if (type === 'hurt' || type === 'fall') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(type === 'fall' ? 110 : 150, now);
+                    osc.frequency.linearRampToValueAtTime(45, now + 0.28);
+                    gain.gain.setValueAtTime(0.38, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.28);
+                    osc.start(now);
+                    osc.stop(now + 0.28);
+                } else if (type === 'portal') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.exponentialRampToValueAtTime(660, now + 0.45);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.45);
+                    osc.start(now);
+                    osc.stop(now + 0.45);
+                }
+            }
+        };
+
+        const ITEM_TYPES = {
+            sword:          { id: 'sword',          name: 'חרב עץ ⚔️',       icon: '⚔️', isTool: true, damage: 4, speed: 1.5, color: 0x8D6E63 },
+            diamond_sword:  { id: 'diamond_sword',  name: 'חרב יהלום 💎⚔️', icon: '🗡️', isTool: true, damage: 12, speed: 3.0, color: 0x18FFFF },
+            iron_pickaxe:   { id: 'iron_pickaxe',   name: 'מכוש ברזל ⛏️',    icon: '⛏️', isTool: true, damage: 6, speed: 3.2, color: 0xE0E0E0 },
+            shield:         { id: 'shield',         name: 'מגן יד 🛡️',        icon: '🛡️', isShield: true, defense: 4 },
+            iron_armor:     { id: 'iron_armor',     name: 'שריון ברזל 🎽',    icon: '🎽', isArmor: true, defense: 5 },
+            diamond_armor:  { id: 'diamond_armor',  name: 'שריון יהלום 💎', icon: '👑', isArmor: true, defense: 9 },
+            grass:          { id: 'grass',          name: 'בלוק דשא',       icon: '🟩', isBlock: true, hardness: 0.6 },
+            dirt:           { id: 'dirt',           name: 'אדמה',           icon: '🟫', isBlock: true, hardness: 0.5 },
+            sand:           { id: 'sand',           name: 'חול ים',         icon: '🟨', isBlock: true, hardness: 0.45 },
+            stone:          { id: 'stone',          name: 'אבן מערות',      icon: '🪨', isBlock: true, hardness: 1.2 },
+            wood:           { id: 'wood',           name: 'גזע עץ',         icon: '🪵', isBlock: true, hardness: 0.9 },
+            planks:         { id: 'planks',         name: 'קרשי עץ',        icon: '📦', isBlock: true, hardness: 0.8 },
+            leaves:         { id: 'leaves',         name: 'עלים',           icon: '🌿', isBlock: true, hardness: 0.25 },
+            coal:           { id: 'coal',           name: 'עפרת פחם',       icon: '⚫', isBlock: true, hardness: 1.4 },
+            iron:           { id: 'iron',           name: 'עפרת ברזל',      icon: '🔩', isBlock: true, hardness: 1.8 },
+            gold:           { id: 'gold',           name: 'עפרת זהב נדירה', icon: '🪙', isBlock: true, hardness: 2.2 },
+            diamond:        { id: 'diamond',        name: 'יהלום יקר 💎',   icon: '💎', isBlock: true, hardness: 2.8 },
+            crafting_table: { id: 'crafting_table', name: 'שולחן עבודה',    icon: '🛠️', isBlock: true, hardness: 1.0 },
+            obsidian:       { id: 'obsidian',       name: 'אובסידיאן',      icon: '⬛', isBlock: true, hardness: 3.5 },
+            netherrack:     { id: 'netherrack',     name: 'אבן נדר',        icon: '🟥', isBlock: true, hardness: 0.6 },
+            end_stone:      { id: 'end_stone',      name: 'אבן קץ (End)',   icon: '🌕', isBlock: true, hardness: 1.5 },
+            water:          { id: 'water',          name: 'מים',            icon: '💧', isBlock: true, hardness: 999, isLiquid: true },
+            nether_portal:  { id: 'nether_portal',  name: 'פורטל נדר',     icon: '🟪', isBlock: true, hardness: 1.5 },
+            end_portal:     { id: 'end_portal',     name: 'פורטל דרקון',    icon: '👁️', isBlock: true, hardness: 1.5 },
+            meat:           { id: 'meat',           name: 'בשר צלוי',       icon: '🥩', isFood: true, heal: 4, hunger: 6 },
+            apple:          { id: 'apple',          name: 'תפוח אדום',      icon: '🍎', isFood: true, heal: 2, hunger: 4 },
+            bread:          { id: 'bread',          name: 'כיכר לחם',       icon: '🍞', isFood: true, heal: 5, hunger: 8 }
+        };
+
+        // מתכוני יצירה מדויקים למיינקראפט בטבלת 3x3
+        const CRAFTING_RECIPES = [
+            { id: 'planks',         resultCount: 4, pattern: [[ 'wood', '', '' ], [ '', '', '' ], [ '', '', '' ]], desc: 'גזע עץ 1 -> 4 קרשי עץ' },
+            { id: 'crafting_table', resultCount: 1, pattern: [[ 'planks', 'planks', '' ], [ 'planks', 'planks', '' ], [ '', '', '' ]], desc: '4 קרשים במרובע -> שולחן עבודה' },
+            { id: 'bread',          resultCount: 2, pattern: [[ 'grass', 'apple', '' ], [ '', '', '' ], [ '', '', '' ]], desc: 'דשא + תפוח -> 2 לחמים' },
+            { id: 'iron_pickaxe',   resultCount: 1, pattern: [[ 'iron', 'iron', 'iron' ], [ '', 'planks', '' ], [ '', 'planks', '' ]], desc: '3 ברזל + 2 קרשים -> מכוש ברזל' },
+            { id: 'diamond_sword',  resultCount: 1, pattern: [[ '', 'diamond', '' ], [ '', 'diamond', '' ], [ '', 'planks', '' ]], desc: '2 יהלומים + קרש -> חרב יהלום' },
+            { id: 'shield',         resultCount: 1, pattern: [[ 'planks', 'iron', 'planks' ], [ 'planks', 'planks', 'planks' ], [ '', 'planks', '' ]], desc: 'קרשים וברזל -> מגן יד חזק 🛡️' },
+            { id: 'iron_armor',     resultCount: 1, pattern: [[ 'iron', '', 'iron' ], [ 'iron', 'iron', 'iron' ], [ 'iron', 'iron', 'iron' ]], desc: '7 ברזל -> שריון ברזל מלא 🎽' },
+            { id: 'diamond_armor',  resultCount: 1, pattern: [[ 'diamond', '', 'diamond' ], [ 'diamond', 'diamond', 'diamond' ], [ 'diamond', 'diamond', 'diamond' ]], desc: '7 יהלומים -> שריון יהלום מלא 💎' }
+        ];
+
+        let craftingGridState = [
+            ['', '', ''],
+            ['', '', ''],
+            ['', '', '']
+        ];
+
+        const inventoryCounts = {
+            sword: 1,
+            diamond_sword: 0,
+            iron_pickaxe: 0,
+            shield: 0,
+            iron_armor: 0,
+            diamond_armor: 0,
+            grass: 15,
+            dirt: 10,
+            sand: 5,
+            stone: 12,
+            wood: 6,
+            planks: 8,
+            leaves: 2,
+            coal: 2,
+            iron: 3,
+            gold: 0,
+            diamond: 0,
+            crafting_table: 1,
+            obsidian: 0,
+            netherrack: 0,
+            end_stone: 0,
+            nether_portal: 0,
+            end_portal: 0,
+            meat: 4,
+            apple: 3,
+            bread: 2
+        };
+
+        const hotbarOrder = ['sword', 'crafting_table', 'shield', 'grass', 'stone', 'wood', 'meat', 'apple', 'bread'];
+        let selectedSlotIndex = 0;
+        let equippedArmor = null;
+        let equippedShield = false;
+
+        function createBlockTexture(baseHex, noiseHex1, noiseHex2, special = null) {
+            const c = document.createElement('canvas');
+            c.width = 16; c.height = 16;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = baseHex;
+            ctx.fillRect(0, 0, 16, 16);
+
+            for (let x = 0; x < 16; x++) {
+                for (let y = 0; y < 16; y++) {
+                    const r = Math.random();
+                    if (r < 0.22) {
+                        ctx.fillStyle = noiseHex1;
+                        ctx.fillRect(x, y, 1, 1);
+                    } else if (r < 0.38) {
+                        ctx.fillStyle = noiseHex2;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+            if (special === 'topGrass') {
+                ctx.fillStyle = '#4caf50';
+                ctx.fillRect(0, 0, 16, 3);
+            } else if (special === 'ore') {
+                const spots = [[4,4],[5,4],[4,5],[10,6],[11,7],[6,11],[7,11],[12,12]];
+                spots.forEach(([sx, sy]) => {
+                    ctx.fillStyle = noiseHex2;
+                    ctx.fillRect(sx, sy, 2, 2);
+                });
+            }
+            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+            ctx.strokeRect(0.5, 0.5, 15, 15);
+            const tex = new THREE.CanvasTexture(c);
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            return tex;
+        }
+
+        const textures = {
+            grassTop:   createBlockTexture('#4CAF50', '#388E3C', '#66BB6A'),
+            grassSide:  createBlockTexture('#795548', '#5D4037', '#8D6E63', 'topGrass'),
+            dirt:       createBlockTexture('#795548', '#5D4037', '#8D6E63'),
+            sand:       createBlockTexture('#FDD835', '#FBC02D', '#FFF176'),
+            stone:      createBlockTexture('#8D8D8D', '#6E6E6E', '#A8A8A8'),
+            woodSide:   createBlockTexture('#6D4C41', '#4E342E', '#5D4037'),
+            woodTop:    createBlockTexture('#BCAAA4', '#8D6E63', '#D7CCC8'),
+            planks:     createBlockTexture('#C59B6D', '#A67B5B', '#D2B48C'),
+            leaves:     createBlockTexture('#2E7D32', '#1B5E20', '#43A047'),
+            coal:       createBlockTexture('#8D8D8D', '#6E6E6E', '#1A1A1A', 'ore'),
+            iron:       createBlockTexture('#8D8D8D', '#6E6E6E', '#FFCCBC', 'ore'),
+            gold:       createBlockTexture('#8D8D8D', '#6E6E6E', '#FFD700', 'ore'),
+            diamond:    createBlockTexture('#8D8D8D', '#6E6E6E', '#00E5FF', 'ore'),
+            craftTop:   createBlockTexture('#A1887F', '#8D6E63', '#BCAAA4'),
+            craftSide:  createBlockTexture('#8D6E63', '#4E342E', '#FFCA28'),
+            obsidian:   createBlockTexture('#1A1025', '#0D0714', '#311B47'),
+            netherrack: createBlockTexture('#7F1D1D', '#450A0A', '#991B1B'),
+            end_stone:  createBlockTexture('#E6EE9C', '#DCE775', '#F0F4C3'),
+            water:      createBlockTexture('#1E88E5', '#1565C0', '#42A5F5'),
+            netherPortal: createBlockTexture('#9333EA', '#6B21A8', '#D8B4FE'),
+            endPortal:    createBlockTexture('#0F172A', '#1E293B', '#38BDF8', 'ore')
+        };
+
+        const materials = {
+            grass: [
+                new THREE.MeshLambertMaterial({ map: textures.grassSide }),
+                new THREE.MeshLambertMaterial({ map: textures.grassSide }),
+                new THREE.MeshLambertMaterial({ map: textures.grassTop }),
+                new THREE.MeshLambertMaterial({ map: textures.dirt }),
+                new THREE.MeshLambertMaterial({ map: textures.grassSide }),
+                new THREE.MeshLambertMaterial({ map: textures.grassSide })
+            ],
+            dirt:       new THREE.MeshLambertMaterial({ map: textures.dirt }),
+            sand:       new THREE.MeshLambertMaterial({ map: textures.sand }),
+            stone:      new THREE.MeshLambertMaterial({ map: textures.stone }),
+            wood: [
+                new THREE.MeshLambertMaterial({ map: textures.woodSide }),
+                new THREE.MeshLambertMaterial({ map: textures.woodSide }),
+                new THREE.MeshLambertMaterial({ map: textures.woodTop }),
+                new THREE.MeshLambertMaterial({ map: textures.woodTop }),
+                new THREE.MeshLambertMaterial({ map: textures.woodSide }),
+                new THREE.MeshLambertMaterial({ map: textures.woodSide })
+            ],
+            planks:     new THREE.MeshLambertMaterial({ map: textures.planks }),
+            leaves:     new THREE.MeshLambertMaterial({ map: textures.leaves }),
+            coal:       new THREE.MeshLambertMaterial({ map: textures.coal }),
+            iron:       new THREE.MeshLambertMaterial({ map: textures.iron }),
+            gold:       new THREE.MeshLambertMaterial({ map: textures.gold }),
+            diamond:    new THREE.MeshLambertMaterial({ map: textures.diamond }),
+            crafting_table: [
+                new THREE.MeshLambertMaterial({ map: textures.craftSide }),
+                new THREE.MeshLambertMaterial({ map: textures.craftSide }),
+                new THREE.MeshLambertMaterial({ map: textures.craftTop }),
+                new THREE.MeshLambertMaterial({ map: textures.planks }),
+                new THREE.MeshLambertMaterial({ map: textures.craftSide }),
+                new THREE.MeshLambertMaterial({ map: textures.craftSide })
+            ],
+            obsidian:   new THREE.MeshLambertMaterial({ map: textures.obsidian }),
+            netherrack: new THREE.MeshLambertMaterial({ map: textures.netherrack }),
+            end_stone:  new THREE.MeshLambertMaterial({ map: textures.end_stone }),
+            water:      new THREE.MeshLambertMaterial({ map: textures.water, transparent: true, opacity: 0.68 }),
+            nether_portal: new THREE.MeshBasicMaterial({ map: textures.netherPortal, transparent: true, opacity: 0.82 }),
+            end_portal:    new THREE.MeshBasicMaterial({ map: textures.endPortal })
+        };
+
+        const canvas = document.getElementById('game-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.014);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 140);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.68);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfff5e0, 0.82);
+        dirLight.position.set(45, 90, 35);
+        scene.add(dirLight);
+
+        const celestialGroup = new THREE.Group();
+        scene.add(celestialGroup);
+        const sunMesh = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshBasicMaterial({ color: 0xFFEE55 }));
+        sunMesh.position.set(0, 80, -45);
+        celestialGroup.add(sunMesh);
+        const moonMesh = new THREE.Mesh(new THREE.BoxGeometry(6, 6, 6), new THREE.MeshBasicMaterial({ color: 0xE0E7FF }));
+        moonMesh.position.set(0, -80, 45);
+        celestialGroup.add(moonMesh);
+
+        const handGroup = new THREE.Group();
+        camera.add(handGroup);
+        scene.add(camera);
+
+        const armMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(0.18, 0.18, 0.55),
+            new THREE.MeshLambertMaterial({ color: 0xE0AC69 })
+        );
+        armMesh.position.set(0.38, -0.32, -0.5);
+        armMesh.rotation.set(0.2, -0.2, 0);
+        handGroup.add(armMesh);
+
+        const bladeMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(0.07, 0.48, 0.09),
+            new THREE.MeshLambertMaterial({ color: 0x8D6E63 })
+        );
+        bladeMesh.position.set(0.32, -0.1, -0.75);
+        bladeMesh.rotation.set(-0.4, 0, 0);
+        handGroup.add(bladeMesh);
+
+        const WORLD_RADIUS = 38;
+        const WATER_LEVEL = -1;
+        const blockGeo = new THREE.BoxGeometry(1, 1, 1);
+        const worldBlocks = new Map();
+        const blockMeshes = [];
+        let currentDimension = 'overworld';
+
+        function getKey(x, y, z) {
+            return `${Math.round(x)},${Math.round(y)},${Math.round(z)}`;
+        }
+
+        function addBlock(x, y, z, type) {
+            x = Math.round(x); y = Math.round(y); z = Math.round(z);
+            const key = getKey(x, y, z);
+            if (worldBlocks.has(key)) return null;
+
+            const mesh = new THREE.Mesh(blockGeo, materials[type]);
+            mesh.position.set(x, y, z);
+            mesh.userData = { type, x, y, z };
+            scene.add(mesh);
+            worldBlocks.set(key, mesh);
+            if (type !== 'water') blockMeshes.push(mesh);
+            return mesh;
+        }
+
+        function removeBlock(x, y, z) {
+            const key = getKey(x, y, z);
+            const mesh = worldBlocks.get(key);
+            if (!mesh) return null;
+            scene.remove(mesh);
+            worldBlocks.delete(key);
+            const idx = blockMeshes.indexOf(mesh);
+            if (idx !== -1) blockMeshes.splice(idx, 1);
+            return mesh.userData.type;
+        }
+
+        function clearAllBlocks() {
+            for (const mesh of worldBlocks.values()) scene.remove(mesh);
+            worldBlocks.clear();
+            blockMeshes.length = 0;
+        }
+
+        function getTerrainHeight(x, z) {
+            if (currentDimension === 'nether') return Math.round(Math.sin(x * 0.16) * Math.cos(z * 0.16) * 2.5);
+            if (currentDimension === 'end') {
+                const dist = Math.hypot(x, z);
+                if (dist > 22) return -12;
+                return Math.round(Math.cos(dist * 0.12) * 1.5);
+            }
+            const wave1 = Math.sin(x * 0.09) * Math.cos(z * 0.09) * 4.5;
+            const wave2 = Math.sin((x - z) * 0.05) * 3.0;
+            const centerFlatten = Math.min(1, Math.hypot(x, z) / 12);
+            return Math.round((wave1 + wave2) * centerFlatten);
+        }
+
+        function isCaveTunnel(x, y, z) {
+            const caveWave = Math.sin(x * 0.2 + y * 0.35) * Math.cos(z * 0.2 - y * 0.25);
+            return caveWave > 0.54;
+        }
+
+        function buildNetherPortalStructure(bx, by, bz) {
+            for (let y = 0; y < 5; y++) {
+                for (let x = 0; x < 4; x++) {
+                    const isFrame = (y === 0 || y === 4 || x === 0 || x === 3);
+                    removeBlock(bx + x, by + y, bz);
+                    addBlock(bx + x, by + y, bz, isFrame ? 'obsidian' : 'nether_portal');
+                }
+            }
+        }
+
+        function buildEndPortalStructure(bx, by, bz) {
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    removeBlock(bx + dx, by, bz + dz);
+                    const isCenter = (dx === 0 && dz === 0);
+                    addBlock(bx + dx, by, bz + dz, isCenter ? 'end_portal' : 'obsidian');
+                }
+            }
+        }
+
+        function generateDimensionWorld(dim) {
+            clearAllBlocks();
+            clearAllMobs();
+            currentDimension = dim;
+
+            const badge = document.getElementById('dimension-badge');
+            const bossBar = document.getElementById('boss-bar-container');
+
+            if (dim === 'overworld') {
+                badge.textContent = '🌍 עולם רגיל';
+                badge.className = 'text-[11px] text-center bg-green-700/80 px-2 py-0.5 rounded font-bold';
+                bossBar.classList.add('hidden');
+                bossBar.classList.remove('flex');
+                setDayNightPhase(isNight, true);
+
+                for (let x = -WORLD_RADIUS; x <= WORLD_RADIUS; x++) {
+                    for (let z = -WORLD_RADIUS; z <= WORLD_RADIUS; z++) {
+                        const topY = getTerrainHeight(x, z);
+                        const surfaceType = topY <= WATER_LEVEL + 1 ? 'sand' : 'grass';
+                        if (!isCaveTunnel(x, topY, z)) addBlock(x, topY, z, surfaceType);
+
+                        if (topY < WATER_LEVEL) {
+                            for (let wy = topY + 1; wy <= WATER_LEVEL; wy++) addBlock(x, wy, z, 'water');
+                        }
+
+                        const minDepth = topY - 10;
+                        for (let y = topY - 1; y >= minDepth; y--) {
+                            if (y > minDepth && isCaveTunnel(x, y, z)) continue;
+                            if (y === topY - 1 && surfaceType === 'grass') {
+                                addBlock(x, y, z, 'dirt');
+                            } else {
+                                const r = Math.random();
+                                let oreType = 'stone';
+                                if (y <= -6 && r < 0.015) oreType = 'diamond';
+                                else if (y <= -4 && r < 0.035) oreType = 'gold';
+                                else if (r < 0.08) oreType = 'iron';
+                                else if (r < 0.14) oreType = 'coal';
+                                addBlock(x, y, z, oreType);
+                            }
+                        }
+
+                        if (topY > WATER_LEVEL + 1 && Math.hypot(x, z) > 7 && Math.random() < 0.02) {
+                            for (let i = 0; i < 4; i++) addBlock(x, topY + 1 + i, z, 'wood');
+                        }
+                    }
+                }
+
+                // פורטלים מוסתרים במרחק מה בעולם
+                buildNetherPortalStructure(26, getTerrainHeight(26, 22) + 1, 22);
+                buildEndPortalStructure(-28, getTerrainHeight(-28, -24) + 1, -24);
+
+                for (let i = 0; i < 6; i++) {
+                    const rx = (Math.random() - 0.5) * 48;
+                    const rz = (Math.random() - 0.5) * 48;
+                    if (getTerrainHeight(rx, rz) > WATER_LEVEL) createMob(i % 2 === 0 ? 'pig' : 'sheep', rx, rz);
+                }
+
+            } else if (dim === 'nether') {
+                badge.textContent = '🔥 ממד הנדר (Nether)';
+                badge.className = 'text-[11px] text-center bg-red-700/90 px-2 py-0.5 rounded font-bold';
+                bossBar.classList.add('hidden');
+                bossBar.classList.remove('flex');
+                scene.background.setHex(0x2A0808);
+                scene.fog.color.setHex(0x2A0808);
+                ambientLight.intensity = 0.55;
+                dirLight.color.setHex(0xFF6633);
+
+                for (let x = -24; x <= 24; x++) {
+                    for (let z = -24; z <= 24; z++) {
+                        const topY = getTerrainHeight(x, z);
+                        addBlock(x, topY, z, 'netherrack');
+                        addBlock(x, topY - 1, z, 'netherrack');
+                        if (Math.random() < 0.07) addBlock(x, topY - 2, z, 'gold');
+                    }
+                }
+                buildNetherPortalStructure(0, getTerrainHeight(0, 0) + 1, -4);
+                showToast('🔥 נכנסת לממד הנדר! חצוב זהב והיזהר!');
+
+            } else if (dim === 'end') {
+                badge.textContent = '🐉 ממד הקץ (The End)';
+                badge.className = 'text-[11px] text-center bg-purple-800/90 px-2 py-0.5 rounded font-bold';
+                bossBar.classList.remove('hidden');
+                bossBar.classList.add('flex');
+                scene.background.setHex(0x0B0716);
+                scene.fog.color.setHex(0x0B0716);
+                ambientLight.intensity = 0.6;
+                dirLight.color.setHex(0xD8B4FE);
+
+                for (let x = -22; x <= 22; x++) {
+                    for (let z = -22; z <= 22; z++) {
+                        if (Math.hypot(x, z) <= 21) {
+                            const topY = getTerrainHeight(x, z);
+                            addBlock(x, topY, z, 'end_stone');
+                            addBlock(x, topY - 1, z, 'end_stone');
+                        }
+                    }
+                }
+                const pillars = [[8, 8], [-8, 8], [8, -8], [-8, -8]];
+                pillars.forEach(([px, pz]) => {
+                    const py = getTerrainHeight(px, pz) + 1;
+                    for (let h = 0; h < 6; h++) addBlock(px, py + h, pz, 'obsidian');
+                    addBlock(px, py + 6, pz, 'diamond');
+                });
+                buildEndPortalStructure(0, getTerrainHeight(0, 4) + 1, 4);
+                createEnderDragon();
+                showToast('🐉 הגעת לממד ה-End! הבס את דרקון האנדר בעזרת חרב היהלום!');
+            }
+        }
+
+        const highlightGeo = new THREE.BoxGeometry(1.01, 1.01, 1.01);
+        const highlightMat = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true, transparent: true, opacity: 0.6 });
+        const highlightMesh = new THREE.Mesh(highlightGeo, highlightMat);
+        highlightMesh.visible = false;
+        scene.add(highlightMesh);
+
+        const crackGeo = new THREE.BoxGeometry(1.02, 1.02, 1.02);
+        const crackMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
+        const crackMesh = new THREE.Mesh(crackGeo, crackMat);
+        crackMesh.visible = false;
+        scene.add(crackMesh);
+
+        const droppedItems = [];
+        function spawnDroppedItem(x, y, z, itemType) {
+            const isBlock = ITEM_TYPES[itemType]?.isBlock;
+            let mat = (isBlock && materials[itemType]) ? materials[itemType] : new THREE.MeshLambertMaterial({ color: 0xFFD700 });
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 0.32), mat);
+            mesh.position.set(x + (Math.random() - 0.5) * 0.3, y + 0.2, z + (Math.random() - 0.5) * 0.3);
+            scene.add(mesh);
+            droppedItems.push({ mesh, type: itemType, vy: 3.5, born: performance.now() });
+        }
+
+        const particles = [];
+        function spawnParticles(x, y, z, colorHex, count = 12) {
+            for (let i = 0; i < count; i++) {
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), new THREE.MeshBasicMaterial({ color: colorHex }));
+                p.position.set(x, y, z);
+                scene.add(p);
+                particles.push({ mesh: p, vx: (Math.random() - 0.5) * 4, vy: Math.random() * 4 + 1, vz: (Math.random() - 0.5) * 4, life: 0.55 });
+            }
+        }
+
+        const mobs = [];
+        const mobHitboxes = [];
+        let totalKills = 0;
+        let activeDragon = null;
+
+        const MOB_DEFS = {
+            pig:     { name: 'חזיר',         hp: 10, speed: 1.8, hostile: false, color: 0xF48FB1, drop: 'meat' },
+            sheep:   { name: 'כבשה',         hp: 10, speed: 1.7, hostile: false, color: 0xF5F5F5, drop: 'meat' },
+            zombie:  { name: 'זומבי',        hp: 16, speed: 2.9, hostile: true,  color: 0x4CAF50, drop: 'apple' },
+            dragon:  { name: 'דרקון האנדר',  hp: 250, speed: 5.2, hostile: true,  color: 0x1A1A2E, drop: 'diamond', isBoss: true }
+        };
+
+        function clearAllMobs() {
+            for (const m of mobs) scene.remove(m.group);
+            mobs.length = 0;
+            mobHitboxes.length = 0;
+            activeDragon = null;
+        }
+
+        function createEnderDragon() {
+            const def = MOB_DEFS.dragon;
+            const group = new THREE.Group();
+            group.position.set(0, 10, -12);
+            const bodyMat = new THREE.MeshLambertMaterial({ color: 0x111118 });
+            const wingMat = new THREE.MeshLambertMaterial({ color: 0x311B92 });
+
+            const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.2, 3.8), bodyMat);
+            group.add(bodyMesh);
+            const headMesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 1.4), bodyMat);
+            headMesh.position.set(0, 0.4, 2.4);
+            group.add(headMesh);
+            const wingL = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.18, 2.2), wingMat);
+            const wingR = wingL.clone();
+            wingL.position.set(-2.6, 0.4, 0);
+            wingR.position.set(2.6, 0.4, 0);
+            group.add(wingL, wingR);
+
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(5.5, 3.0, 5.5), new THREE.MeshBasicMaterial({ visible: false }));
+            group.add(hitbox);
+            scene.add(group);
+
+            const dragonObj = { type: 'dragon', def, group, hitbox, bodyMesh, wingL, wingR, hp: def.hp, maxHp: def.hp, vx: 0, vy: 0, vz: 0, flyPhase: 0, attackCooldown: 0, hurtFlash: 0 };
+            hitbox.userData.mob = dragonObj;
+            mobs.push(dragonObj);
+            mobHitboxes.push(hitbox);
+            activeDragon = dragonObj;
+            updateBossBarUI();
+            return dragonObj;
+        }
+
+        function updateBossBarUI() {
+            if (!activeDragon) return;
+            const pct = Math.max(0, (activeDragon.hp / activeDragon.maxHp) * 100);
+            document.getElementById('boss-hp-fill').style.width = `${pct}%`;
+            document.getElementById('boss-hp-text').textContent = `${Math.max(0, activeDragon.hp)}/${activeDragon.maxHp}`;
+        }
+
+        function createMob(type, x, z) {
+            const def = MOB_DEFS[type];
+            const group = new THREE.Group();
+            const y = getTerrainHeight(x, z) + 0.5;
+            group.position.set(x, y, z);
+
+            const bodyMat = new THREE.MeshLambertMaterial({ color: def.color });
+            let bodyMesh, headMesh;
+
+            if (type === 'zombie') {
+                bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.1, 0.35), new THREE.MeshLambertMaterial({ color: 0x1E88E5 }));
+                bodyMesh.position.y = 0.65;
+                group.add(bodyMesh);
+                headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), bodyMat);
+                headMesh.position.y = 1.45;
+                group.add(headMesh);
+            } else {
+                bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.55, 0.95), bodyMat);
+                bodyMesh.position.y = 0.45;
+                group.add(bodyMesh);
+                headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.45), new THREE.MeshLambertMaterial({ color: 0xD7CCC8 }));
+                headMesh.position.set(0, 0.65, 0.55);
+                group.add(headMesh);
+            }
+
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(0.95, def.hostile ? 1.85 : 1.1, 0.95), new THREE.MeshBasicMaterial({ visible: false }));
+            hitbox.position.y = def.hostile ? 0.9 : 0.55;
+            group.add(hitbox);
+            scene.add(group);
+
+            const mobObj = { type, def, group, hitbox, bodyMesh, headMesh, hp: def.hp, maxHp: def.hp, vx: 0, vy: 0, vz: 0, hurtFlash: 0 };
+            hitbox.userData.mob = mobObj;
+            mobs.push(mobObj);
+            mobHitboxes.push(hitbox);
+            document.getElementById('kill-count').textContent = totalKills;
+            return mobObj;
+        }
+
+        function removeMob(mob) {
+            scene.remove(mob.group);
+            const idx = mobs.indexOf(mob);
+            if (idx !== -1) mobs.splice(idx, 1);
+            const hIdx = mobHitboxes.indexOf(mob.hitbox);
+            if (hIdx !== -1) mobHitboxes.splice(hIdx, 1);
+            if (mob === activeDragon) {
+                activeDragon = null;
+                document.getElementById('boss-bar-container').classList.add('hidden');
+            }
+            document.getElementById('kill-count').textContent = totalKills;
+        }
+
+        const DAY_DURATION = 2 * 60; // בדיוק 2 דקות בוקר
+        const NIGHT_DURATION = 2 * 60; // 2 דקות לילה
+        let isNight = false;
+        let phaseTimer = DAY_DURATION;
+        let mobSpawnTimer = 0;
+
+        function setDayNightPhase(nightMode, silent = false) {
+            isNight = nightMode;
+            phaseTimer = isNight ? NIGHT_DURATION : DAY_DURATION;
+
+            const phaseIcon = document.getElementById('phase-icon');
+            const phaseText = document.getElementById('phase-text');
+            const toggleBtn = document.getElementById('toggle-time-btn');
+
+            if (isNight) {
+                phaseIcon.textContent = '🌙';
+                phaseText.textContent = 'לילה (זומבים!)';
+                phaseText.className = 'font-bold text-sm text-indigo-300';
+                toggleBtn.textContent = 'דלג לבוקר ☀️';
+
+                if (currentDimension === 'overworld') {
+                    scene.background.setHex(0x090D1C);
+                    scene.fog.color.setHex(0x090D1C);
+                    ambientLight.intensity = 0.28;
+                    dirLight.intensity = 0.25;
+                    celestialGroup.rotation.x = Math.PI;
+
+                    // זימון זומבים בלילה
+                    for (let i = 0; i < 6; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const dist = 12 + Math.random() * 10;
+                        createMob('zombie', player.pos.x + Math.cos(angle) * dist, player.pos.z + Math.sin(angle) * dist);
+                    }
+                }
+                if (!silent) showToast('🌙 הלילה ירד! זומבים מסתובבים בחוץ!');
+            } else {
+                phaseIcon.textContent = '☀️';
+                phaseText.textContent = 'בוקר (2 דקות)';
+                phaseText.className = 'font-bold text-sm text-yellow-300';
+                toggleBtn.textContent = 'דלג ללילה 🌙';
+
+                if (currentDimension === 'overworld') {
+                    scene.background.setHex(0x87CEEB);
+                    scene.fog.color.setHex(0x87CEEB);
+                    ambientLight.intensity = 0.68;
+                    dirLight.intensity = 0.82;
+                    celestialGroup.rotation.x = 0;
+
+                    // מחיקת כל הזומבים (הם נשרפים בשמש!)
+                    for (let i = mobs.length - 1; i >= 0; i--) {
+                        if (mobs[i].def.hostile && !mobs[i].def.isBoss) {
+                            spawnParticles(mobs[i].group.position.x, mobs[i].group.position.y + 1, mobs[i].group.position.z, 0xFFAA00, 16);
+                            removeMob(mobs[i]);
+                        }
+                    }
+                }
+                if (!silent) showToast('☀️ הבוקר עלה! הזומבים נשרפו בשמש ונעלמו!');
+            }
+        }
+
+        function updateClockUI(dt) {
+            phaseTimer -= dt;
+            if (phaseTimer <= 0) setDayNightPhase(!isNight);
+            const mins = Math.floor(Math.max(0, phaseTimer) / 60);
+            const secs = Math.floor(Math.max(0, phaseTimer) % 60);
+            document.getElementById('timer-text').textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} נותרו`;
+
+            if (isNight && currentDimension === 'overworld') {
+                mobSpawnTimer += dt;
+                if (mobSpawnTimer > 12 && mobs.filter(m => m.def.hostile).length < 8) {
+                    mobSpawnTimer = 0;
+                    const angle = Math.random() * Math.PI * 2;
+                    const sx = player.pos.x + Math.cos(angle) * 15;
+                    const sz = player.pos.z + Math.sin(angle) * 15;
+                    createMob('zombie', sx, sz);
+                }
+            }
+        }
+
+        document.getElementById('toggle-time-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            setDayNightPhase(!isNight);
+        });
+
+        const player = {
+            pos: new THREE.Vector3(0, 6, 4),
+            vel: new THREE.Vector3(0, 0, 0),
+            yaw: 0,
+            pitch: 0,
+            height: 1.65,
+            radius: 0.32,
+            onGround: false,
+            inWater: false,
+            headUnderWater: false,
+            fallStartY: null,
+            hp: 10,
+            maxHp: 10,
+            hunger: 10,
+            maxHunger: 10,
+            oxygen: 10,
+            maxOxygen: 10,
+            portalCooldown: 0
+        };
+
+        const keys = {};
+        let isPointerLocked = false;
+        let isInventoryOpen = false;
+        let isLeftMouseDown = false;
+        let miningProgress = 0;
+        let currentMiningBlock = null;
+        let drowningTimer = 0;
+
+        function renderHotbar() {
+            const container = document.getElementById('hotbar');
+            container.innerHTML = '';
+            hotbarOrder.forEach((itemId, idx) => {
+                const info = ITEM_TYPES[itemId];
+                const count = inventoryCounts[itemId] || 0;
+                const div = document.createElement('div');
+                div.className = `mc-slot rounded-lg ${idx === selectedSlotIndex ? 'active' : ''}`;
+                div.innerHTML = `
+                    <span class="absolute top-0.5 right-1 text-[10px] text-gray-300 font-bold">${idx + 1}</span>
+                    <span class="text-2xl select-none">${count > 0 || info.isTool || info.isArmor || info.isShield ? info.icon : ''}</span>
+                    ${!info.isTool && !info.isArmor && !info.isShield && count > 0 ? `<span class="absolute bottom-0.5 left-1.5 text-xs font-black text-white drop-shadow">${count}</span>` : ''}
+                `;
+                div.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectSlot(idx);
+                });
+                container.appendChild(div);
+            });
+
+            const activeId = hotbarOrder[selectedSlotIndex];
+            const activeInfo = ITEM_TYPES[activeId];
+            document.getElementById('selected-item-name').textContent = activeInfo.isTool || activeInfo.isArmor || activeInfo.isShield ? activeInfo.name : `${activeInfo.name} (${inventoryCounts[activeId] || 0})`;
+            document.getElementById('armor-status').textContent = equippedArmor ? ITEM_TYPES[equippedArmor].name : 'אין';
+            document.getElementById('shield-status').textContent = equippedShield ? 'כן 🛡️' : 'לא';
+        }
+
+        function renderInventoryModal() {
+            const craftGridEl = document.getElementById('crafting-grid-3x3');
+            craftGridEl.innerHTML = '';
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    const itemId = craftingGridState[r][c];
+                    const slotDiv = document.createElement('div');
+                    slotDiv.className = 'craft-grid-slot rounded';
+                    slotDiv.innerHTML = itemId ? ITEM_TYPES[itemId].icon : '';
+                    slotDiv.addEventListener('click', () => {
+                        const activeId = hotbarOrder[selectedSlotIndex];
+                        if (inventoryCounts[activeId] > 0) {
+                            inventoryCounts[activeId]--;
+                            craftingGridState[r][c] = activeId;
+                            renderInventoryModal();
+                            checkCraftingRecipeMatch();
+                        } else if (itemId) {
+                            addItemToInventory(itemId, 1);
+                            craftingGridState[r][c] = '';
+                            renderInventoryModal();
+                            checkCraftingRecipeMatch();
+                        }
+                    });
+                    craftGridEl.appendChild(slotDiv);
+                }
+            }
+
+            const invGrid = document.getElementById('full-inventory-grid');
+            invGrid.innerHTML = '';
+            Object.keys(ITEM_TYPES).forEach(itemId => {
+                if (itemId === 'water') return;
+                const info = ITEM_TYPES[itemId];
+                const count = inventoryCounts[itemId] || 0;
+                const card = document.createElement('div');
+                card.className = `p-2 rounded-lg border ${count > 0 ? 'bg-gray-800 border-gray-500 hover:border-amber-400 cursor-pointer' : 'bg-gray-900/40 border-gray-800 opacity-50'} flex flex-col items-center text-center transition`;
+                card.innerHTML = `
+                    <div class="text-2xl mb-1">${info.icon}</div>
+                    <div class="text-xs font-bold leading-tight">${info.name}</div>
+                    <div class="text-[11px] text-amber-300 font-mono mt-0.5">${count}</div>
+                `;
+                if (count > 0) {
+                    card.addEventListener('click', () => {
+                        hotbarOrder[selectedSlotIndex] = itemId;
+                        renderHotbar();
+                        showToast(`צויד בסלוט ${selectedSlotIndex + 1}: ${info.name}`);
+                    });
+                }
+                invGrid.appendChild(card);
+            });
+
+            const recipesContainer = document.getElementById('crafting-recipes-list');
+            recipesContainer.innerHTML = '';
+            CRAFTING_RECIPES.forEach(recipe => {
+                const resInfo = ITEM_TYPES[recipe.id];
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between bg-gray-800/90 p-2.5 rounded-lg border border-gray-700';
+                row.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                        <span class="text-2xl">${resInfo.icon}</span>
+                        <div>
+                            <div class="font-bold text-xs text-white">${resInfo.name} x${recipe.resultCount}</div>
+                            <div class="text-[10px] text-gray-300">${recipe.desc}</div>
+                        </div>
+                    </div>
+                    <button class="px-2.5 py-1 rounded-lg font-bold text-xs bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer">
+                        מלא
+                    </button>
+                `;
+                row.querySelector('button').addEventListener('click', () => {
+                    for (let r = 0; r < 3; r++) {
+                        for (let c = 0; c < 3; c++) {
+                            craftingGridState[r][c] = recipe.pattern[r][c];
+                        }
+                    }
+                    renderInventoryModal();
+                    checkCraftingRecipeMatch();
+                });
+                recipesContainer.appendChild(row);
+            });
+        }
+
+        let matchedRecipeResult = null;
+        function checkCraftingRecipeMatch() {
+            matchedRecipeResult = null;
+            for (const recipe of CRAFTING_RECIPES) {
+                let match = true;
+                for (let r = 0; r < 3; r++) {
+                    for (let c = 0; c < 3; c++) {
+                        if (craftingGridState[r][c] !== recipe.pattern[r][c]) match = false;
+                    }
+                }
+                if (match) {
+                    matchedRecipeResult = recipe;
+                    break;
+                }
+            }
+
+            const outSlot = document.getElementById('craft-output-slot');
+            if (matchedRecipeResult) {
+                outSlot.innerHTML = ITEM_TYPES[matchedRecipeResult.id].icon;
+                outSlot.title = ITEM_TYPES[matchedRecipeResult.id].name;
+            } else {
+                outSlot.innerHTML = '❓';
+            }
+        }
+
+        document.getElementById('craft-btn-action').addEventListener('click', () => {
+            if (!matchedRecipeResult) {
+                showToast('❌ סידור הבלוקים בשולחן אינו תואם למתכון מיינקראפט אמיתי!');
+                return;
+            }
+            addItemToInventory(matchedRecipeResult.id, matchedRecipeResult.resultCount);
+            if (matchedRecipeResult.id === 'shield') equippedShield = true;
+            if (matchedRecipeResult.id === 'iron_armor' || matchedRecipeResult.id === 'diamond_armor') equippedArmor = matchedRecipeResult.id;
+
+            SoundFX.play('pickup');
+            craftingGridState = [['','',''],['','',''],['','','']];
+            renderInventoryModal();
+            checkCraftingRecipeMatch();
+            showToast(`✨ יצרת בהצלחה ${ITEM_TYPES[matchedRecipeResult.id].name}!`);
+        });
+
+        function toggleInventoryModal(forceState) {
+            isInventoryOpen = typeof forceState === 'boolean' ? forceState : !isInventoryOpen;
+            const modal = document.getElementById('inventory-modal');
+            if (isInventoryOpen) {
+                document.exitPointerLock();
+                renderInventoryModal();
+                checkCraftingRecipeMatch();
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                canvas.requestPointerLock();
+            }
+        }
+
+        document.getElementById('open-inv-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleInventoryModal(true); });
+        document.getElementById('close-inv-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleInventoryModal(false); });
+
+        function selectSlot(index) {
+            selectedSlotIndex = (index + hotbarOrder.length) % hotbarOrder.length;
+            renderHotbar();
+        }
+
+        function addItemToInventory(type, amount = 1) {
+            if (!(type in inventoryCounts)) inventoryCounts[type] = 0;
+            inventoryCounts[type] += amount;
+            if (!hotbarOrder.includes(type)) {
+                const emptyIdx = hotbarOrder.findIndex(id => (inventoryCounts[id] || 0) === 0 && !ITEM_TYPES[id].isTool);
+                if (emptyIdx !== -1) hotbarOrder[emptyIdx] = type;
+            }
+            renderHotbar();
+            showToast(`+${amount} ${ITEM_TYPES[type].name} ${ITEM_TYPES[type].icon}`);
+        }
+
+        function updateStatusBarsUI() {
+            const fullHearts = Math.max(0, Math.round(player.hp));
+            document.getElementById('hearts-container').textContent = '❤️'.repeat(fullHearts) + '🖤'.repeat(player.maxHp - fullHearts);
+            const fullHunger = Math.max(0, Math.round(player.hunger));
+            document.getElementById('hunger-container').textContent = '🍗'.repeat(fullHunger) + '🦴'.repeat(player.maxHunger - fullHunger);
+        }
+
+        function hurtPlayer(damage, reasonMsg = '') {
+            if (equippedArmor === 'diamond_armor') damage = Math.max(1, damage - 3);
+            else if (equippedArmor === 'iron_armor') damage = Math.max(1, damage - 2);
+            if (equippedShield) damage = Math.max(1, damage - 2);
+
+            player.hp = Math.max(0, player.hp - damage);
+            SoundFX.play(reasonMsg.includes('נפילה') ? 'fall' : 'hurt');
+            updateStatusBarsUI();
+            if (reasonMsg) showToast(reasonMsg);
+
+            const overlay = document.getElementById('damage-overlay');
+            overlay.style.opacity = '1';
+            setTimeout(() => { overlay.style.opacity = '0'; }, 280);
+
+            if (player.hp <= 0) {
+                showToast('💀 נפסת! חזרת לחיים בנקודת ההתחלה.');
+                player.hp = player.maxHp;
+                player.hunger = player.maxHunger;
+                player.oxygen = player.maxOxygen;
+                player.pos.set(0, getTerrainHeight(0, 0) + 4, 4);
+                updateStatusBarsUI();
+            }
+        }
+
+        function showToast(msg) {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            el.className = 'bg-black/85 text-white text-xs font-bold px-3.5 py-1.5 rounded-full border border-green-500 shadow transition-opacity duration-300';
+            el.textContent = msg;
+            container.appendChild(el);
+            setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 2600);
+        }
+
+        const overlayScreen = document.getElementById('overlay-screen');
+        document.getElementById('start-btn').addEventListener('click', () => {
+            SoundFX.init();
+            canvas.requestPointerLock();
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            isPointerLocked = (document.pointerLockElement === canvas);
+            if (isPointerLocked) overlayScreen.style.display = 'none';
+            else if (!isInventoryOpen) overlayScreen.style.display = 'flex';
+        });
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'KeyE') { e.preventDefault(); toggleInventoryModal(); return; }
+            if (e.code.startsWith('Digit')) {
+                const num = parseInt(e.code.replace('Digit', ''), 10);
+                if (num >= 1 && num <= 9) selectSlot(num - 1);
+            }
+        });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+        window.addEventListener('wheel', (e) => { if (isPointerLocked) selectSlot(selectedSlotIndex + (e.deltaY > 0 ? 1 : -1)); });
+        window.addEventListener('mousemove', (e) => {
+            if (!isPointerLocked) return;
+            player.yaw -= e.movementX * 0.0022;
+            player.pitch = Math.max(-1.5, Math.min(1.5, player.pitch - e.movementY * 0.0022));
+        });
+
+        const raycaster = new THREE.Raycaster();
+
+        function tryAttackMob() {
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            raycaster.far = 6.5;
+            const hits = raycaster.intersectObjects(mobHitboxes, false);
+            if (hits.length > 0) {
+                const mob = hits[0].object.userData.mob;
+                if (mob) {
+                    const activeId = hotbarOrder[selectedSlotIndex];
+                    const activeInfo = ITEM_TYPES[activeId];
+                    const dmg = (activeInfo.isTool && inventoryCounts[activeId] > 0) ? activeInfo.damage : 3;
+                    mob.hp -= dmg;
+                    mob.hurtFlash = 0.25;
+                    SoundFX.play('hitMob');
+
+                    if (mob.def.isBoss) updateBossBarUI();
+
+                    spawnParticles(mob.group.position.x, mob.group.position.y + 0.8, mob.group.position.z, 0xFF3333, 10);
+                    if (mob.hp <= 0) {
+                        totalKills++;
+                        spawnDroppedItem(mob.group.position.x, mob.group.position.y + 0.5, mob.group.position.z, mob.def.drop);
+                        if (mob.def.isBoss) {
+                            showToast('🏆 ניצחת את דרקון האנדר! יהלומים אגדיים נפלו!');
+                            addItemToInventory('diamond', 12);
+                        } else {
+                            showToast(`⚔️ חיסלת ${mob.def.name}!`);
+                        }
+                        removeMob(mob);
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function handleRightClick() {
+            const activeId = hotbarOrder[selectedSlotIndex];
+            const info = ITEM_TYPES[activeId];
+            const count = inventoryCounts[activeId] || 0;
+
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            raycaster.far = 5.5;
+            const hits = raycaster.intersectObjects(blockMeshes, false);
+            if (hits.length > 0 && hits[0].object.userData.type === 'crafting_table') {
+                toggleInventoryModal(true);
+                return;
+            }
+
+            if (info.isFood && count > 0) {
+                if (player.hp < player.maxHp || player.hunger < player.maxHunger) {
+                    inventoryCounts[activeId]--;
+                    player.hp = Math.min(player.maxHp, player.hp + info.heal);
+                    player.hunger = Math.min(player.maxHunger, player.hunger + info.hunger);
+                    SoundFX.play('pickup');
+                    updateStatusBarsUI();
+                    renderHotbar();
+                    showToast(`${info.icon} אכלת ${info.name}!`);
+                }
+                return;
+            }
+
+            if (info.isBlock && count > 0 && hits.length > 0) {
+                const hit = hits[0];
+                const normal = hit.face.normal;
+                const nx = Math.round(hit.object.position.x + normal.x);
+                const ny = Math.round(hit.object.position.y + normal.y);
+                const nz = Math.round(hit.object.position.z + normal.z);
+                if (addBlock(nx, ny, nz, activeId)) {
+                    inventoryCounts[activeId]--;
+                    SoundFX.play('hitBlock');
+                    renderHotbar();
+                }
+            }
+        }
+
+        window.addEventListener('mousedown', (e) => {
+            if (!isPointerLocked || isInventoryOpen) return;
+            if (e.button === 0) { isLeftMouseDown = true; tryAttackMob(); }
+            else if (e.button === 2) { handleRightClick(); }
+        });
+        window.addEventListener('mouseup', (e) => { if (e.button === 0) { isLeftMouseDown = false; miningProgress = 0; crackMesh.visible = false; } });
+        window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        function getBlockTypeAt(x, y, z) {
+            const mesh = worldBlocks.get(getKey(Math.round(x), Math.round(y), Math.round(z)));
+            return mesh ? mesh.userData.type : null;
+        }
+        function isSolidBlockAt(x, y, z) {
+            const t = getBlockTypeAt(x, y, z);
+            return t !== null && t !== 'water' && t !== 'nether_portal' && t !== 'end_portal';
+        }
+        function checkPlayerCollision(pos) {
+            const minX = Math.floor(pos.x - player.radius + 0.5);
+            const maxX = Math.floor(pos.x + player.radius + 0.5);
+            const minY = Math.floor(pos.y - player.height + 0.5);
+            const maxY = Math.floor(pos.y - 0.1 + 0.5);
+            const minZ = Math.floor(pos.z - player.radius + 0.5);
+            const maxZ = Math.floor(pos.z + player.radius + 0.5);
+            for (let x = minX; x <= maxX; x++) {
+                for (let y = minY; y <= maxY; y++) {
+                    for (let z = minZ; z <= maxZ; z++) {
+                        if (isSolidBlockAt(x, y, z)) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function checkPortalAndWaterState(dt) {
+            if (player.portalCooldown > 0) player.portalCooldown -= dt;
+            const footBlock = getBlockTypeAt(player.pos.x, player.pos.y - 1.2, player.pos.z);
+            const headBlock = getBlockTypeAt(player.pos.x, player.pos.y - 0.1, player.pos.z);
+            player.inWater = (footBlock === 'water' || headBlock === 'water');
+            player.headUnderWater = (headBlock === 'water');
+            document.getElementById('water-overlay').style.opacity = player.headUnderWater ? '1' : '0';
+
+            if (player.headUnderWater) {
+                player.oxygen = Math.max(0, player.oxygen - dt * 0.85);
+                if (player.oxygen <= 0) {
+                    drowningTimer += dt;
+                    if (drowningTimer >= 1.2) { drowningTimer = 0; hurtPlayer(1, '🫧 חסר חמצן במים!'); }
+                }
+            } else if (player.oxygen < player.maxOxygen) {
+                player.oxygen = Math.min(player.maxOxygen, player.oxygen + dt * 2.5);
+            }
+
+            const portalBlock = (footBlock === 'nether_portal' || headBlock === 'nether_portal') ? 'nether' :
+                                (footBlock === 'end_portal' || headBlock === 'end_portal') ? 'end' : null;
+
+            if (portalBlock && player.portalCooldown <= 0) {
+                player.portalCooldown = 3.5;
+                SoundFX.play('portal');
+                const pOverlay = document.getElementById('portal-overlay');
+                pOverlay.style.opacity = '1';
+                setTimeout(() => { pOverlay.style.opacity = '0'; }, 600);
+                if (portalBlock === 'nether') generateDimensionWorld(currentDimension === 'nether' ? 'overworld' : 'nether');
+                else if (portalBlock === 'end') generateDimensionWorld(currentDimension === 'end' ? 'overworld' : 'end');
+                player.pos.set(0, getTerrainHeight(0, 0) + 3, 2);
+                player.vel.set(0, 0, 0);
+            }
+        }
+
+        function updatePlayerPhysics(dt) {
+            checkPortalAndWaterState(dt);
+
+            let moveForward = 0, moveRight = 0;
+            if (keys['KeyW'] || keys['ArrowUp']) moveForward += 1;
+            if (keys['KeyS'] || keys['ArrowDown']) moveForward -= 1;
+            if (keys['KeyD'] || keys['ArrowRight']) moveRight += 1;
+            if (keys['KeyA'] || keys['ArrowLeft']) moveRight -= 1;
+
+            const speed = player.inWater ? 3.4 : 5.4;
+            const forwardVec = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+            const rightVec = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+            const wishDir = new THREE.Vector3().addScaledVector(forwardVec, moveForward).addScaledVector(rightVec, moveRight);
+            if (wishDir.lengthSq() > 0) wishDir.normalize();
+
+            player.vel.x = wishDir.x * speed;
+            player.vel.z = wishDir.z * speed;
+
+            if (player.inWater) {
+                player.fallStartY = null;
+                player.vel.y = keys['Space'] ? 3.8 : Math.max(-2.2, player.vel.y - 6 * dt);
+            } else {
+                if (keys['Space'] && player.onGround) { player.vel.y = 7.7; player.onGround = false; }
+                player.vel.y -= 20 * dt;
+                if (!player.onGround && player.vel.y < 0) {
+                    if (player.fallStartY === null || player.pos.y > player.fallStartY) player.fallStartY = player.pos.y;
+                }
+            }
+
+            player.pos.x += player.vel.x * dt;
+            if (checkPlayerCollision(player.pos)) player.pos.x -= player.vel.x * dt;
+            player.pos.z += player.vel.z * dt;
+            if (checkPlayerCollision(player.pos)) player.pos.z -= player.vel.z * dt;
+
+            player.pos.y += player.vel.y * dt;
+            const wasOnGround = player.onGround;
+            player.onGround = false;
+            if (checkPlayerCollision(player.pos)) {
+                if (player.vel.y < 0) {
+                    player.onGround = true;
+                    if (!wasOnGround && player.fallStartY !== null && !player.inWater) {
+                        const fallDist = player.fallStartY - player.pos.y;
+                        if (fallDist > 4.2) hurtPlayer(Math.floor(fallDist - 3.5), `💥 נפילה קשה!`);
+                    }
+                    player.fallStartY = null;
+                }
+                player.pos.y -= player.vel.y * dt;
+                player.vel.y = 0;
+            }
+
+            camera.position.copy(player.pos);
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = player.yaw;
+            camera.rotation.x = player.pitch;
+            document.getElementById('coords-text').textContent = `${Math.round(player.pos.x)}, ${Math.round(player.pos.y)}, ${Math.round(player.pos.z)}`;
+        }
+
+        function updateMiningAndHighlight(dt) {
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            raycaster.far = 5.2;
+            const hits = raycaster.intersectObjects(blockMeshes, false);
+            if (hits.length > 0) {
+                const targetBlock = hits[0].object;
+                highlightMesh.position.copy(targetBlock.position);
+                highlightMesh.visible = true;
+
+                if (isLeftMouseDown) {
+                    if (currentMiningBlock !== targetBlock) { currentMiningBlock = targetBlock; miningProgress = 0; }
+                    const bType = targetBlock.userData.type;
+                    const hardness = ITEM_TYPES[bType]?.hardness || 1.0;
+                    const activeTool = ITEM_TYPES[hotbarOrder[selectedSlotIndex]];
+                    const toolMult = (activeTool?.isTool) ? activeTool.speed : 1.0;
+                    miningProgress += (dt * toolMult) / hardness;
+                    crackMesh.position.copy(targetBlock.position);
+                    crackMesh.visible = true;
+                    crackMesh.material.opacity = Math.min(0.65, miningProgress * 0.65);
+
+                    if (miningProgress >= 1) {
+                        const { x, y, z, type } = targetBlock.userData;
+                        removeBlock(x, y, z);
+                        SoundFX.play('breakBlock');
+                        spawnDroppedItem(x, y, z, type);
+                        miningProgress = 0;
+                        currentMiningBlock = null;
+                        crackMesh.visible = false;
+                    }
+                }
+            } else {
+                highlightMesh.visible = false;
+                crackMesh.visible = false;
+                miningProgress = 0;
+            }
+        }
+
+        function updateDroppedItemsAndParticles(dt) {
+            for (let i = droppedItems.length - 1; i >= 0; i--) {
+                const item = droppedItems[i];
+                item.mesh.rotation.y += dt * 2.5;
+                if (item.mesh.position.distanceTo(new THREE.Vector3(player.pos.x, player.pos.y - 0.8, player.pos.z)) < 1.95) {
+                    SoundFX.play('pickup');
+                    addItemToInventory(item.type, 1);
+                    scene.remove(item.mesh);
+                    droppedItems.splice(i, 1);
+                }
+            }
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.life -= dt;
+                p.mesh.position.addScaledVector(new THREE.Vector3(p.vx, p.vy, p.vz), dt);
+                if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
+            }
+        }
+
+        function updateMobs(dt) {
+            for (let i = mobs.length - 1; i >= 0; i--) {
+                const mob = mobs[i];
+                const pos = mob.group.position;
+                if (mob.hurtFlash > 0) mob.hurtFlash -= dt;
+
+                const dx = player.pos.x - pos.x;
+                const dz = player.pos.z - pos.z;
+                const dist = Math.hypot(dx, dz);
+
+                if (mob.def.isBoss) {
+                    mob.flyPhase += dt * 1.4;
+                    pos.x += (player.pos.x - pos.x) * dt * 1.2;
+                    pos.z += (player.pos.z - pos.z) * dt * 1.2;
+                    mob.group.rotation.y = Math.atan2(dx, dz);
+                    continue;
+                }
+
+                if (mob.def.hostile && dist < 14) {
+                    const angle = Math.atan2(dx, dz);
+                    pos.x += Math.sin(angle) * mob.def.speed * dt;
+                    pos.z += Math.cos(angle) * mob.def.speed * dt;
+                    mob.group.rotation.y = angle;
+                    if (dist < 1.35) {
+                        hurtPlayer(1, `💥 זומבי תקף אותך!`);
+                    }
+                }
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        generateDimensionWorld('overworld');
+        player.pos.set(0, getTerrainHeight(0, 4) + 3, 4);
+        renderHotbar();
+        updateStatusBarsUI();
+
+        let lastTime = performance.now();
+        function animate() {
+            requestAnimationFrame(animate);
+            const now = performance.now();
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+
+            if (isPointerLocked && !isInventoryOpen) {
+                updatePlayerPhysics(dt);
+                updateMiningAndHighlight(dt);
+            }
+            updateClockUI(dt);
+            updateDroppedItemsAndParticles(dt);
+            updateMobs(dt);
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () { animate(); };
+    </script>
+</body>
+</html>

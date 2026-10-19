@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ליגת החלומות 2D - משחק כדורגל זוגי</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rubik', sans-serif;
+            background-color: #0f172a;
+            overflow: hidden;
+            touch-action: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        canvas {
+            background-color: #2e7d32;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            border: 6px solid #1e293b;
+            border-radius: 16px;
+            max-width: 95vw;
+            max-height: 68vh;
+            object-fit: contain;
+        }
+        .text-glow {
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+        }
+        .btn-play {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            transition: all 0.2s ease;
+        }
+        .btn-play:hover {
+            transform: scale(1.05);
+            box-shadow: 0 15px 30px rgba(37, 99, 235, 0.5);
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <!-- לוח תוצאות וזמן עליון -->
+    <div class="fixed top-0 left-0 w-full p-4 flex justify-between items-center z-10 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+        <div class="bg-slate-900/80 px-6 py-2 rounded-2xl border border-white/10 flex flex-col items-center backdrop-blur-md shadow-xl">
+            <span class="text-xs text-blue-400 font-bold uppercase tracking-wider">שלב</span>
+            <span id="level-display" class="text-3xl font-black text-white">1</span>
+        </div>
+        
+        <div class="flex items-center gap-6 bg-slate-900/80 px-8 py-3 rounded-2xl border border-white/10 backdrop-blur-md shadow-xl">
+            <div class="flex items-center gap-3">
+                <span class="text-xl font-bold text-blue-400">שחקן 1 (כחולים)</span>
+                <span id="score-blue" class="text-4xl font-black text-white">0</span>
+            </div>
+            <span class="text-2xl text-slate-500 font-light">-</span>
+            <div class="flex items-center gap-3">
+                <span id="score-red" class="text-4xl font-black text-white">0</span>
+                <span id="opponent-name-display" class="text-xl font-bold text-red-400">שחקן 2 (אדומים)</span>
+            </div>
+        </div>
+
+        <div class="bg-slate-900/80 px-6 py-2 rounded-2xl border border-white/10 flex flex-col items-center backdrop-blur-md shadow-xl">
+            <span class="text-xs text-yellow-400 font-bold uppercase tracking-wider">זמן</span>
+            <span id="timer" class="text-3xl font-black text-yellow-400">01:00</span>
+        </div>
+    </div>
+
+    <!-- קונטיינר מרכזי למשחק -->
+    <div id="game-container">
+        <h1 class="text-3xl font-black mb-2 text-glow bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-white to-red-400 absolute top-3 hidden md:block">
+            ⚽ ליגת החלומות 2D - משחק זוגי מתקדם ⚽
+        </h1>
+
+        <canvas id="gameCanvas" width="1000" height="600"></canvas>
+
+        <!-- מקלדת והסברים לשחקנים -->
+        <div class="mt-4 text-center max-w-4xl bg-slate-900/90 px-6 py-3 rounded-2xl border border-white/10 shadow-2xl backdrop-blur-md grid grid-cols-2 gap-8 text-sm">
+            <div class="border-l border-slate-700 pl-4">
+                <h3 class="text-base font-bold text-blue-400 mb-1 flex items-center justify-center gap-2">
+                    🔵 שחקן 1 (כחולים)
+                </h3>
+                <p class="text-slate-300">
+                    תזוזה: <kbd class="bg-slate-800 text-blue-300 px-2 py-1 rounded font-mono border border-slate-700">W A S D</kbd> | בעיטה: <kbd class="bg-slate-800 text-blue-300 px-2 py-1 rounded font-mono border border-slate-700">Space</kbd>
+                </p>
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-red-400 mb-1 flex items-center justify-center gap-2">
+                    🔴 שחקן 2 (קבוצה יריבה)
+                </h3>
+                <p class="text-slate-300">
+                    תזוזה: <kbd class="bg-slate-800 text-red-300 px-2 py-1 rounded font-mono border border-slate-700">חצים ⬆️⬇️⬅️➡️</kbd> | בעיטה: <kbd class="bg-slate-800 text-red-300 px-2 py-1 rounded font-mono border border-slate-700">Enter</kbd>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- מסך תפריט / סיום משחק -->
+    <div id="menu-overlay" class="fixed inset-0 bg-slate-950/95 z-50 flex flex-col items-center justify-center backdrop-blur-md p-6">
+        <div class="bg-slate-900 border border-slate-800 p-10 rounded-3xl shadow-2xl max-w-xl text-center flex flex-col items-center">
+            <div class="w-20 h-20 bg-blue-600/20 rounded-2xl flex items-center justify-center mb-4 text-4xl border border-blue-500/30">
+                ⚽
+            </div>
+            <h1 id="menu-title" class="text-5xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-red-400">
+                ליגת החלומות 2D
+            </h1>
+            <p id="menu-subtitle" class="text-lg text-slate-300 mb-8 leading-relaxed">
+                משחק כדורגל זוגי מלא דמויות מאוירות, שליטה חכמה בשחקן הקרוב לכדור, ומערכת שלבים מתקדמת!
+            </p>
+            <button id="start-btn" class="btn-play text-white font-extrabold text-xl py-4 px-12 rounded-2xl shadow-xl w-full">
+                התחל משחק
+            </button>
+        </div>
+    </div>
+
+    <!-- התראת גול מונפשת -->
+    <div id="goal-alert" class="fixed inset-0 z-40 flex items-center justify-center opacity-0 pointer-events-none transition-all duration-300 scale-125">
+        <div class="bg-yellow-500/90 text-slate-950 font-black text-8xl px-16 py-8 rounded-3xl shadow-[0_0_80px_rgba(234,179,8,0.6)] border-4 border-white tracking-wider transform rotate-[-3deg]">
+            ⚽ גול אדיר! ⚽
+        </div>
+    </div>
+
+    <script>
+        // --- מערכת סאונד מובנית (Web Audio API) ---
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                let now = audioCtx.currentTime;
+
+                if (type === 'kick') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+                    gain.gain.setValueAtTime(0.5, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } else if (type === 'goal') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.setValueAtTime(450, now + 0.1);
+                    osc.frequency.setValueAtTime(600, now + 0.2);
+                    gain.gain.setValueAtTime(0.6, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                } else if (type === 'whistle') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(1200, now);
+                    osc.frequency.setValueAtTime(1400, now + 0.15);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                }
+            } catch(e) {}
+        }
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const scoreBlueEl = document.getElementById('score-blue');
+        const scoreRedEl = document.getElementById('score-red');
+        const timerEl = document.getElementById('timer');
+        const menuOverlay = document.getElementById('menu-overlay');
+        const menuTitle = document.getElementById('menu-title');
+        const menuSubtitle = document.getElementById('menu-subtitle');
+        const startBtn = document.getElementById('start-btn');
+        const goalAlert = document.getElementById('goal-alert');
+        const levelDisplayEl = document.getElementById('level-display');
+        const opponentNameDisplayEl = document.getElementById('opponent-name-display');
+
+        const GAME_TIME = 60;
+        const FPS = 60;
+        
+        let gameState = 'MENU';
+        let scoreBlue = 0;
+        let scoreRed = 0;
+        let timeRemaining = GAME_TIME;
+        let lastTime = 0;
+        let timerInterval;
+        let currentLevel = 1;
+
+        // הגדרת שלבים וקבוצות יריבות
+        const levelsData = [
+            { name: 'שחקן 2 (אדומים)', color1: '#ef4444', color2: '#991b1b', textColor: 'text-red-400' },
+            { name: 'שחקן 2 (כתומים)', color1: '#f97316', color2: '#c2410c', textColor: 'text-orange-400' },
+            { name: 'שחקן 2 (ירוקים)', color1: '#22c55e', color2: '#15803d', textColor: 'text-green-400' },
+            { name: 'שחקן 2 (סגולים)', color1: '#a855f7', color2: '#6b21a8', textColor: 'text-purple-400' },
+            { name: 'שחקן 2 (זהובים)', color1: '#eab308', color2: '#a16207', textColor: 'text-yellow-400' }
+        ];
+
+        const randomNames = ['ירון', 'משה', 'עידו', 'נועם', 'איתי', 'גיא', 'תומר', 'עומר', 'רועי', 'דניאל', 'אלון', 'יונתן'];
+
+        const FRICTION = 0.95;
+        const PLAYER_SPEED = 4.2;
+        const PLAYER_RADIUS = 20; // גודל פיזי מוגדל לשחקנים מפורטים
+        const BALL_RADIUS = 12;
+        const KICK_POWER = 13;
+
+        const keys = {
+            KeyW: false, KeyS: false, KeyA: false, KeyD: false, Space: false,
+            ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, Enter: false
+        };
+
+        let spacePressedLastFrame = false;
+        let enterPressedLastFrame = false;
+
+        const goalWidth = 24;
+        const goalHeight = 140;
+        const goalY = canvas.height / 2 - goalHeight / 2;
+
+        const leftGoal = { x: 0, y: goalY, w: goalWidth, h: goalHeight };
+        const rightGoal = { x: canvas.width - goalWidth, y: goalY, w: goalWidth, h: goalHeight };
+
+        class Ball {
+            constructor() {
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.radius = BALL_RADIUS;
+                this.vx = 0;
+                this.vy = 0;
+            }
+
+            update() {
+                this.vx *= FRICTION;
+                this.vy *= FRICTION;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // קירות עליון ותחתון
+                if (this.y - this.radius < 0) {
+                    this.y = this.radius;
+                    this.vy *= -1;
+                }
+                if (this.y + this.radius > canvas.height) {
+                    this.y = canvas.height - this.radius;
+                    this.vy *= -1;
+                }
+
+                // שערים וקירות צד
+                if (this.x - this.radius < 0) {
+                    if (this.y > leftGoal.y && this.y < leftGoal.y + leftGoal.h) {
+                        scoreGoal('RED');
+                    } else {
+                        this.x = this.radius;
+                        this.vx *= -1;
+                    }
+                }
+                if (this.x + this.radius > canvas.width) {
+                    if (this.y > rightGoal.y && this.y < rightGoal.y + rightGoal.h) {
+                        scoreGoal('BLUE');
+                    } else {
+                        this.x = canvas.width - this.radius;
+                        this.vx *= -1;
+                    }
+                }
+            }
+
+            draw() {
+                // צל הכדור
+                ctx.beginPath();
+                ctx.arc(this.x + 3, this.y + 6, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.fill();
+
+                // גוף הכדור
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = '#0f172a';
+                ctx.stroke();
+
+                // דוגמת כדורגל קלאסית בפנים
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.35, 0, Math.PI * 2);
+                ctx.fillStyle = '#0f172a';
+                ctx.fill();
+            }
+        }
+
+        class Player {
+            constructor(x, y, team, name = "", color1 = "", color2 = "", number = "10") {
+                this.startX = x;
+                this.startY = y;
+                this.x = x;
+                this.y = y;
+                this.radius = PLAYER_RADIUS;
+                this.team = team; // 'BLUE' או 'OPPONENT'
+                this.vx = 0;
+                this.vy = 0;
+                this.name = name;
+                this.color1 = color1;
+                this.color2 = color2;
+                this.number = number;
+                // כיוון מבט (1 לימין, -1 לשמאל)
+                this.facing = team === 'BLUE' ? 1 : -1;
+            }
+
+            update() {
+                if (this.vx > 0.3) this.facing = 1;
+                if (this.vx < -0.3) this.facing = -1;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                this.vx *= 0.82;
+                this.vy *= 0.82;
+
+                // גבולות מגרש
+                if (this.x - this.radius < 0) this.x = this.radius;
+                if (this.x + this.radius > canvas.width) this.x = canvas.width - this.radius;
+                if (this.y - this.radius < 0) this.y = this.radius;
+                if (this.y + this.radius > canvas.height) this.y = canvas.height - this.radius;
+            }
+
+            draw(isActive = false) {
+                // צל השחקן
+                ctx.beginPath();
+                ctx.arc(this.x, this.y + 6, this.radius * 0.9, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fill();
+
+                // --- גוף השחקן (חולצה מעוצבת) ---
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                const grad = ctx.createRadialGradient(this.x - 6, this.y - 6, 2, this.x, this.y, this.radius);
+                grad.addColorStop(0, this.color1);
+                grad.addColorStop(1, this.color2);
+                ctx.fillStyle = grad;
+                ctx.fill();
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+
+                // מספר על החולצה
+                ctx.font = "bold 13px Rubik, sans-serif";
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(this.number, this.x, this.y);
+
+                // --- ראש ועיניים ---
+                let headX = this.x + (this.facing * 8);
+                let headY = this.y - 4;
+                ctx.beginPath();
+                ctx.arc(headX, headY, 7, 0, Math.PI * 2);
+                ctx.fillStyle = '#fde047'; // צבע פנים מאויר
+                ctx.fill();
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#713f12';
+                ctx.stroke();
+
+                // עיניים קטנות
+                ctx.beginPath();
+                ctx.arc(headX + (this.facing * 3), headY - 1, 1.5, 0, Math.PI * 2);
+                ctx.fillStyle = '#0f172a';
+                ctx.fill();
+
+                // --- שם השחקן מעליו ---
+                ctx.font = "bold 13px Rubik, sans-serif";
+                ctx.fillStyle = "white";
+                ctx.textAlign = "center";
+                ctx.shadowColor = "rgba(0,0,0,0.9)";
+                ctx.shadowBlur = 6;
+                ctx.fillText(this.name, this.x, this.y - this.radius - 8);
+                ctx.shadowBlur = 0;
+
+                // --- הילה לשחקן הפעיל כרגע ---
+                if (isActive) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius + 7, 0, Math.PI * 2);
+                    ctx.strokeStyle = this.team === 'BLUE' ? 'rgba(59, 130, 246, 0.95)' : 'rgba(239, 68, 68, 0.95)';
+                    ctx.lineWidth = 4;
+                    ctx.setLineDash([6, 4]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            resetPos() {
+                this.x = this.startX;
+                this.y = this.startY;
+                this.vx = 0;
+                this.vy = 0;
+            }
+        }
+
+        let ball = new Ball();
+        let players = [];
+        let activePlayerBlue = null;
+        let activePlayerOpp = null;
+
+        function getRandomName() {
+            return randomNames[Math.floor(Math.random() * randomNames.length)];
+        }
+
+        function createTeams() {
+            players = [];
+            const oppData = levelsData[Math.min(currentLevel - 1, levelsData.length - 1)];
+
+            // קבוצה כחולה (שחקן 1) - 4 שחקנים פרוסים במגרש
+            players.push(new Player(canvas.width * 0.25, canvas.height * 0.50, 'BLUE', 'דוד (P1)', '#3b82f6', '#1d4ed8', '10'));
+            players.push(new Player(canvas.width * 0.20, canvas.height * 0.30, 'BLUE', getRandomName(), '#3b82f6', '#1d4ed8', '7'));
+            players.push(new Player(canvas.width * 0.20, canvas.height * 0.70, 'BLUE', getRandomName(), '#3b82f6', '#1d4ed8', '8'));
+            players.push(new Player(canvas.width * 0.10, canvas.height * 0.50, 'BLUE', getRandomName(), '#3b82f6', '#1d4ed8', '1')); // שוער
+
+            // קבוצת יריב (שחקן 2) - 4 שחקנים פרוסים בצד השני
+            players.push(new Player(canvas.width * 0.75, canvas.height * 0.50, 'OPPONENT', 'רועי (P2)', oppData.color1, oppData.color2, '9'));
+            players.push(new Player(canvas.width * 0.80, canvas.height * 0.30, 'OPPONENT', getRandomName(), oppData.color1, oppData.color2, '11'));
+            players.push(new Player(canvas.width * 0.80, canvas.height * 0.70, 'OPPONENT', getRandomName(), oppData.color1, oppData.color2, '5'));
+            players.push(new Player(canvas.width * 0.90, canvas.height * 0.50, 'OPPONENT', getRandomName(), oppData.color1, oppData.color2, '1')); // שוער יריב
+        }
+
+        function getDistance(p1, p2) {
+            let dx = p1.x - p2.x;
+            let dy = p1.y - p2.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function drawPitch() {
+            // רקע דשא ירוק כהה עשיר
+            ctx.fillStyle = '#2e7d32';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // פסי דשא רוחביים
+            const stripeWidth = canvas.width / 12;
+            for (let i = 0; i < 12; i++) {
+                if (i % 2 === 0) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
+                    ctx.fillRect(i * stripeWidth, 0, stripeWidth, canvas.height);
+                }
+            }
+
+            // קווי מגרש לבנים
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.lineWidth = 3.5;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+            // קו אמצע
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+
+            // עיגול אמצע
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2, 70, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2, 5, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.fill();
+
+            // רחבות שער
+            const penWidth = 120;
+            const penHeight = 260;
+            ctx.strokeRect(0, canvas.height / 2 - penHeight / 2, penWidth, penHeight);
+            ctx.strokeRect(canvas.width - penWidth, canvas.height / 2 - penHeight / 2, penWidth, penHeight);
+
+            // רשתות שער מעוצבות
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+            
+            // שער שמאלי
+            ctx.beginPath();
+            ctx.rect(leftGoal.x, leftGoal.y, leftGoal.w, leftGoal.h);
+            ctx.fill();
+            ctx.strokeStyle = '#cbd5e1';
+            for (let i = 0; i <= leftGoal.w; i += 6) {
+                ctx.moveTo(leftGoal.x + i, leftGoal.y); ctx.lineTo(leftGoal.x + i, leftGoal.y + leftGoal.h);
+            }
+            for (let i = 0; i <= leftGoal.h; i += 6) {
+                ctx.moveTo(leftGoal.x, leftGoal.y + i); ctx.lineTo(leftGoal.x + leftGoal.w, leftGoal.y + i);
+            }
+            ctx.stroke();
+
+            // שער ימני
+            ctx.beginPath();
+            ctx.rect(rightGoal.x, rightGoal.y, rightGoal.w, rightGoal.h);
+            ctx.fill();
+            for (let i = 0; i <= rightGoal.w; i += 6) {
+                ctx.moveTo(rightGoal.x + i, rightGoal.y); ctx.lineTo(rightGoal.x + i, rightGoal.y + rightGoal.h);
+            }
+            for (let i = 0; i <= rightGoal.h; i += 6) {
+                ctx.moveTo(rightGoal.x, rightGoal.y + i); ctx.lineTo(rightGoal.x + rightGoal.w, rightGoal.y + i);
+            }
+            ctx.stroke();
+        }
+
+        function updateLogic() {
+            if (gameState !== 'PLAYING') return;
+
+            // --- מציאת השחקן הפעיל של שחקן 1 (הכי קרוב לכדור) ---
+            let minDistBlue = Infinity;
+            players.forEach(p => {
+                if (p.team === 'BLUE') {
+                    let d = getDistance(p, ball);
+                    if (d < minDistBlue) {
+                        minDistBlue = d;
+                        activePlayerBlue = p;
+                    }
+                }
+            });
+
+            // --- מציאת השחקן הפעיל של שחקן 2 (הכי קרוב לכדור) ---
+            let minDistOpp = Infinity;
+            players.forEach(p => {
+                if (p.team === 'OPPONENT') {
+                    let d = getDistance(p, ball);
+                    if (d < minDistOpp) {
+                        minDistOpp = d;
+                        activePlayerOpp = p;
+                    }
+                }
+            });
+
+            // --- תנועת שחקן 1 (WASD) ---
+            if (activePlayerBlue) {
+                if (keys.KeyW) activePlayerBlue.vy -= 1.8;
+                if (keys.KeyS) activePlayerBlue.vy += 1.8;
+                if (keys.KeyA) activePlayerBlue.vx -= 1.8;
+                if (keys.KeyD) activePlayerBlue.vx += 1.8;
+
+                let speed = Math.sqrt(activePlayerBlue.vx ** 2 + activePlayerBlue.vy ** 2);
+                if (speed > PLAYER_SPEED) {
+                    activePlayerBlue.vx = (activePlayerBlue.vx / speed) * PLAYER_SPEED;
+                    activePlayerBlue.vy = (activePlayerBlue.vy / speed) * PLAYER_SPEED;
+                }
+            }
+
+            // --- תנועת שחקן 2 (חצים) ---
+            if (activePlayerOpp) {
+                if (keys.ArrowUp) activePlayerOpp.vy -= 1.8;
+                if (keys.ArrowDown) activePlayerOpp.vy += 1.8;
+                if (keys.ArrowLeft) activePlayerOpp.vx -= 1.8;
+                if (keys.ArrowRight) activePlayerOpp.vx += 1.8;
+
+                let speed = Math.sqrt(activePlayerOpp.vx ** 2 + activePlayerOpp.vy ** 2);
+                if (speed > PLAYER_SPEED) {
+                    activePlayerOpp.vx = (activePlayerOpp.vx / speed) * PLAYER_SPEED;
+                    activePlayerOpp.vy = (activePlayerOpp.vy / speed) * PLAYER_SPEED;
+                }
+            }
+
+            // --- בעיטה שחקן 1 (Space) ---
+            if (keys.Space && !spacePressedLastFrame && activePlayerBlue) {
+                let d = getDistance(activePlayerBlue, ball);
+                if (d < activePlayerBlue.radius + ball.radius + 20) {
+                    let angle = Math.atan2(ball.y - activePlayerBlue.y, ball.x - activePlayerBlue.x);
+                    ball.vx += Math.cos(angle) * KICK_POWER;
+                    ball.vy += Math.sin(angle) * KICK_POWER;
+                    playSound('kick');
+                }
+            }
+            spacePressedLastFrame = keys.Space;
+
+            // --- בעיטה שחקן 2 (Enter) ---
+            if (keys.Enter && !enterPressedLastFrame && activePlayerOpp) {
+                let d = getDistance(activePlayerOpp, ball);
+                if (d < activePlayerOpp.radius + ball.radius + 20) {
+                    let angle = Math.atan2(ball.y - activePlayerOpp.y, ball.x - activePlayerOpp.x);
+                    ball.vx += Math.cos(angle) * KICK_POWER;
+                    ball.vy += Math.sin(angle) * KICK_POWER;
+                    playSound('kick');
+                }
+            }
+            enterPressedLastFrame = keys.Enter;
+
+            // עדכון פיזיקה
+            ball.update();
+            players.forEach(p => p.update());
+
+            // התנגשויות שחקן-כדור
+            players.forEach(p => {
+                let dx = ball.x - p.x;
+                let dy = ball.y - p.y;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                let minDist = ball.radius + p.radius;
+
+                if (dist < minDist) {
+                    let angle = Math.atan2(dy, dx);
+                    let overlap = minDist - dist;
+                    ball.x += Math.cos(angle) * overlap;
+                    ball.y += Math.sin(angle) * overlap;
+                    ball.vx += p.vx * 0.6;
+                    ball.vy += p.vy * 0.6;
+                }
+            });
+
+            // התנגשויות בין שחקנים לבין עצמם
+            for (let i = 0; i < players.length; i++) {
+                for (let j = i + 1; j < players.length; j++) {
+                    let p1 = players[i];
+                    let p2 = players[j];
+                    let dx = p2.x - p1.x;
+                    let dy = p2.y - p1.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    let minDist = p1.radius + p2.radius;
+
+                    if (dist < minDist) {
+                        let angle = Math.atan2(dy, dx);
+                        let overlap = (minDist - dist) / 2;
+                        p1.x -= Math.cos(angle) * overlap;
+                        p1.y -= Math.sin(angle) * overlap;
+                        p2.x += Math.cos(angle) * overlap;
+                        p2.y += Math.sin(angle) * overlap;
+                    }
+                }
+            }
+        }
+
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPitch();
+            players.forEach(p => {
+                let isActive = (p === activePlayerBlue || p === activePlayerOpp) && gameState === 'PLAYING';
+                p.draw(isActive);
+            });
+            ball.draw();
+        }
+
+        function gameLoop(timestamp) {
+            let deltaTime = timestamp - lastTime;
+            if (deltaTime > 1000 / FPS) {
+                updateLogic();
+                drawGame();
+                lastTime = timestamp;
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame(isNewGame = false) {
+            initAudio();
+            if (isNewGame) {
+                currentLevel = 1;
+            }
+            
+            createTeams();
+            
+            const oppData = levelsData[Math.min(currentLevel - 1, levelsData.length - 1)];
+            opponentNameDisplayEl.innerText = oppData.name;
+            opponentNameDisplayEl.className = `text-xl font-bold ${oppData.textColor}`;
+            levelDisplayEl.innerText = currentLevel;
+
+            ball = new Ball();
+            scoreBlue = 0;
+            scoreRed = 0;
+            timeRemaining = GAME_TIME;
+            updateScoreBoard();
+            
+            menuOverlay.classList.add('hidden');
+            gameState = 'PLAYING';
+            playSound('whistle');
+            
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (gameState === 'PLAYING') {
+                    timeRemaining--;
+                    updateScoreBoard();
+                    if (timeRemaining <= 0) {
+                        endGame();
+                    }
+                }
+            }, 1000);
+        }
+
+        function scoreGoal(scoringTeam) {
+            gameState = 'GOAL';
+            playSound('goal');
+            if (scoringTeam === 'BLUE') scoreBlue++;
+            else scoreRed++;
+            
+            updateScoreBoard();
+            
+            goalAlert.classList.remove('opacity-0', 'scale-125');
+            goalAlert.classList.add('opacity-100', 'scale-100');
+
+            setTimeout(() => {
+                goalAlert.classList.remove('opacity-100', 'scale-100');
+                goalAlert.classList.add('opacity-0', 'scale-125');
+                resetPositionsAfterGoal();
+                gameState = 'PLAYING';
+            }, 2200);
+        }
+
+        function resetPositionsAfterGoal() {
+            ball = new Ball();
+            players.forEach(p => p.resetPos());
+        }
+
+        function endGame() {
+            gameState = 'OVER';
+            clearInterval(timerInterval);
+            menuOverlay.classList.remove('hidden');
+
+            if (scoreBlue > scoreRed) {
+                currentLevel++;
+                if (currentLevel > levelsData.length) {
+                    menuTitle.innerHTML = "🏆 ניצחתם את כל הליגה! 🏆";
+                    menuSubtitle.innerHTML = "כל הכבוד! הפכתם לאלופים האבסולוטיים של טורניר החלומות.";
+                    startBtn.innerText = "שחק מחדש מהתחלה";
+                    currentLevel = 1;
+                    startBtn.onclick = () => startGame(true);
+                } else {
+                    const nextOpp = levelsData[currentLevel - 1];
+                    menuTitle.innerHTML = "שחקן 1 ניצח את השלב!";
+                    menuSubtitle.innerHTML = `הישג מדהים! עליתם לשלב ${currentLevel} נגד ${nextOpp.name}.`;
+                    startBtn.innerText = "המשך לשלב הבא";
+                    startBtn.onclick = () => startGame(false);
+                }
+            } else {
+                let msg = scoreRed > scoreBlue ? "שחקן 2 ניצח את המשחק!" : "תוצאת תיקו!";
+                menuTitle.innerHTML = msg;
+                menuSubtitle.innerHTML = "הזמן תם. נסו שוב להילחם מהתחלה ולנצח בשלב 1!";
+                startBtn.innerText = "שחק שוב מההתחלה";
+                startBtn.onclick = () => startGame(true);
+            }
+        }
+
+        function updateScoreBoard() {
+            scoreBlueEl.innerText = scoreBlue;
+            scoreRedEl.innerText = scoreRed;
+            
+            let m = Math.floor(timeRemaining / 60);
+            let s = timeRemaining % 60;
+            timerEl.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            
+            if (timeRemaining <= 10) {
+                timerEl.classList.add('animate-pulse', 'text-red-500');
+            } else {
+                timerEl.classList.remove('animate-pulse', 'text-red-500');
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.code)) {
+                keys[e.code] = true;
+                if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+                    e.preventDefault();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.code)) {
+                keys[e.code] = false;
+            }
+        });
+
+        startBtn.onclick = () => startGame(true);
+
+        createTeams();
+        drawGame();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

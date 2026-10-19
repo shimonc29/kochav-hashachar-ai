@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Memory Master - כיתה ח'</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rubik', sans-serif;
+            background: radial-gradient(circle at top right, #eef2ff, #e0e7ff, #f8fafc);
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        .english-text {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .perspective {
+            perspective: 1000px;
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+
+        .card.flipped .card-inner,
+        .card.matched .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            border-radius: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+        }
+
+        .card-front {
+            background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:not(.flipped):not(.matched):hover .card-front {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 25px -5px rgba(79, 70, 229, 0.35);
+        }
+
+        .card-back {
+            background: #ffffff;
+            color: #1e293b;
+            transform: rotateY(180deg);
+            border: 3px solid #6366f1;
+        }
+
+        .card.matched .card-back {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border-color: #10b981;
+            color: #065f46;
+            animation: matchPulse 0.5s ease-out;
+        }
+
+        .card.wrong .card-back {
+            border-color: #ef4444;
+            background: #fef2f2;
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes matchPulse {
+            0% { transform: rotateY(180deg) scale(1); }
+            50% { transform: rotateY(180deg) scale(1.08); }
+            100% { transform: rotateY(180deg) scale(1); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: rotateY(180deg) translateX(0); }
+            25% { transform: rotateY(180deg) translateX(-6px); }
+            75% { transform: rotateY(180deg) translateX(6px); }
+        }
+    </style>
+</head>
+<body class="text-slate-800 p-3 sm:p-6 flex flex-col items-center">
+
+    <div class="w-full max-w-4xl">
+        <header class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/90 backdrop-blur-md p-4 sm:p-6 rounded-2xl shadow-md border border-indigo-50 mb-5">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-indigo-200">
+                    🧠
+                </div>
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-extrabold text-indigo-950 tracking-tight">English Memory Master</h1>
+                    <p class="text-sm text-slate-500 font-medium">משחק זיכרון אינטראקטיבי לתלמידי כיתה ח' (Band II)</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+                <div class="flex items-center gap-2 bg-indigo-50 px-3 py-2 rounded-xl border border-indigo-100">
+                    <span class="text-xs font-bold text-indigo-600">שחקן:</span>
+                    <span id="currentProfileName" class="font-extrabold text-indigo-950 text-sm">אורח</span>
+                    <button onclick="openNameModal()" class="text-xs text-indigo-600 hover:text-indigo-800 underline font-bold mr-1">החלף</button>
+                </div>
+                <button id="audioToggleBtn" onclick="toggleAudio()" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-sm transition" title="הקראת מילים באנגלית">
+                    <span id="audioIcon">🔊</span>
+                    <span id="audioText" class="hidden sm:inline">הגייה</span>
+                </button>
+                <button onclick="openLeaderboardModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-sm border border-amber-200 transition">
+                    <span>🏆</span>
+                    <span>טבלת שיאים</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
+            <!-- Controls -->
+            <div class="lg:col-span-7 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-3">
+                <div class="flex-1 min-w-[180px]">
+                    <label class="block text-xs font-bold text-slate-400 mb-1">קטגוריית לימוד</label>
+                    <select id="categorySelect" onchange="initGame()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="vocab">📘 אוצר מילים לכיתה ח' (עברית-אנגלית)</option>
+                        <option value="verbs">⚡ פעלים יוצאי דופן (V1 ⇄ V2)</option>
+                        <option value="idioms">💬 ניבים וביטויים (Idioms)</option>
+                        <option value="synonyms">🔄 מילים נרדפות (Synonyms)</option>
+                        <option value="custom" id="customOption" class="hidden">⭐ המילים שלי (מותאם אישית)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">מצב משחק</label>
+                    <div class="inline-flex rounded-xl bg-slate-100 p-1">
+                        <button id="mode1P" onclick="setMode(1)" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-white text-indigo-700 shadow-sm">שחקן יחיד</button>
+                        <button id="mode2P" onclick="setMode(2)" class="px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900">2 שחקנים 👥</button>
+                    </div>
+                </div>
+
+                <div class="self-end flex gap-2">
+                    <button onclick="useHint()" id="hintBtn" class="px-3 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold text-sm shadow-sm transition flex items-center gap-1">
+                        <span>💡</span>
+                        <span>רמז (<span id="hintsLeft">2</span>)</span>
+                    </button>
+                    <button onclick="openCustomModal()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition" title="הוסף מילים משלך">
+                        ✏️ מילים שלי
+                    </button>
+                </div>
+
+                <div class="self-end">
+                    <button onclick="initGame()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-sm shadow-indigo-200 transition">
+                        ערבב מחדש 🔄
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats / Scoreboard -->
+            <div class="lg:col-span-5 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-around">
+                <!-- Single Player Stats -->
+                <div id="stats1P" class="flex items-center justify-around w-full">
+                    <div class="text-center">
+                        <span class="block text-xs font-bold text-slate-400">מהלכים</span>
+                        <span id="movesCount" class="text-2xl font-extrabold text-indigo-600">0</span>
+                    </div>
+                    <div class="h-8 w-px bg-slate-200"></div>
+                    <div class="text-center">
+                        <span class="block text-xs font-bold text-slate-400">זוגות שנמצאו</span>
+                        <span class="text-2xl font-extrabold text-emerald-600"><span id="matchesCount">0</span>/8</span>
+                    </div>
+                    <div class="h-8 w-px bg-slate-200"></div>
+                    <div class="text-center">
+                        <span class="block text-xs font-bold text-slate-400">זמן</span>
+                        <span id="timerDisplay" class="text-2xl font-extrabold text-slate-700 english-text">00:00</span>
+                    </div>
+                </div>
+
+                <!-- Two Players Stats -->
+                <div id="stats2P" class="hidden items-center justify-between w-full gap-3">
+                    <div id="p1Box" class="flex-1 p-2 rounded-xl border-2 border-indigo-600 bg-indigo-50/60 text-center transition">
+                        <div class="text-xs font-bold text-indigo-900 flex items-center justify-center gap-1">
+                            <span id="p1LabelName">🔵 שחקן 1</span>
+                            <span id="p1TurnBadge" class="inline-block w-2 h-2 rounded-full bg-indigo-600 animate-ping"></span>
+                        </div>
+                        <div id="p1Score" class="text-2xl font-extrabold text-indigo-700">0</div>
+                    </div>
+
+                    <div class="text-xs font-bold text-slate-400">VS</div>
+
+                    <div id="p2Box" class="flex-1 p-2 rounded-xl border-2 border-transparent bg-slate-50 text-center transition">
+                        <div class="text-xs font-bold text-rose-900 flex items-center justify-center gap-1">
+                            <span id="p2LabelName">🔴 שחקן 2</span>
+                            <span id="p2TurnBadge" class="hidden w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
+                        </div>
+                        <div id="p2Score" class="text-2xl font-extrabold text-rose-600">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Board -->
+        <div id="gameBoard" class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 w-full">
+            <!-- Cards injected via JS -->
+        </div>
+
+        <!-- Matched Words Review Bar -->
+        <div class="mt-6 bg-white/80 backdrop-blur p-4 rounded-2xl border border-slate-200/70">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">זוגות שפיצחתם במשחק הנוכחי (לחצו על זוג להקראה באנגלית):</h3>
+            <div id="learnedList" class="flex flex-wrap gap-2 min-h-[36px] items-center text-sm text-slate-400">
+                עדיין לא נמצאו זוגות. הפכו שני קלפים כדי להתחיל!
+            </div>
+        </div>
+    </div>
+
+    <!-- Name Setup Modal -->
+    <div id="nameModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-indigo-100">
+            <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
+                👤
+            </div>
+            <h2 class="text-xl font-extrabold text-slate-800 mb-1">איך קוראים לך?</h2>
+            <p class="text-xs text-slate-500 mb-4">הכנס את שמך כדי לשמור את השיאים שלך בטבלת הניקוד!</p>
+            <input type="text" id="playerNameInput" maxlength="15" class="w-full text-center rounded-xl border border-slate-300 py-2.5 px-3 text-base font-bold text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4" placeholder="הכנס שם שחקן...">
+            <div class="flex gap-2">
+                <button onclick="savePlayerName()" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-200 transition">
+                    התחל לשחק 🚀
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Victory Modal -->
+    <div id="winModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 text-center shadow-2xl border border-indigo-100 transform transition-all">
+            <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-4 shadow-inner">
+                🏆
+            </div>
+            <h2 id="winTitle" class="text-2xl sm:text-3xl font-extrabold text-slate-800 mb-2">כל הכבוד!</h2>
+            <p id="winSubtitle" class="text-slate-600 mb-6">סיימת את כל הזוגות בהצלחה!</p>
+
+            <div class="bg-slate-50 rounded-2xl p-4 mb-6 grid grid-cols-2 gap-4 border border-slate-100">
+                <div>
+                    <span class="block text-xs text-slate-400 font-bold">מספר מהלכים</span>
+                    <span id="finalMoves" class="text-xl font-extrabold text-indigo-600">0</span>
+                </div>
+                <div>
+                    <span class="block text-xs text-slate-400 font-bold">זמן סיום</span>
+                    <span id="finalTime" class="text-xl font-extrabold text-emerald-600 english-text">00:00</span>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="closeWinModal(); initGame();" class="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 transition">
+                    שחק שוב 🚀
+                </button>
+                <button onclick="closeWinModal(); openLeaderboardModal();" class="px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition">
+                    טבלת שיאים 🏆
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboardModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+                    <span>🏆</span> טבלת אלופים (שיאים מובילים)
+                </h2>
+                <button onclick="closeLeaderboardModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">השחקנים המהירים ביותר שפצחו את לוח המילים בפחות מהלכים:</p>
+            <div id="leaderboardList" class="space-y-2 max-h-64 overflow-y-auto mb-5 pr-1">
+                <!-- Injected via JS -->
+            </div>
+            <button onclick="closeLeaderboardModal()" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition">
+                חזור למשחק
+            </button>
+        </div>
+    </div>
+
+    <!-- Custom Words Modal -->
+    <div id="customModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-extrabold text-slate-800">✏️ הכנסת מילים משלך (למבחן או שיעורי בית)</h2>
+                <button onclick="closeCustomModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+            </div>
+            <p class="text-sm text-slate-600 mb-3">
+                הזן לפחות 4 זוגות של מילים (כל זוג בשורה נפרדת, מופרד בפסיק או מקף). למשל:
+            </p>
+            <textarea id="customInput" rows="7" dir="ltr" class="w-full rounded-xl border border-slate-300 p-3 text-sm english-text focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3" placeholder="Delicious, טעים מאוד&#10;Adventure, הרפתקה&#10;Curious, סקרן&#10;Independent, עצמאי"></textarea>
+            <div id="customError" class="text-xs text-rose-600 font-bold mb-3 hidden">נא להזין לפחות 4 זוגות תקינים מופרדים בפסיק.</div>
+            <div class="flex justify-end gap-2">
+                <button onclick="closeCustomModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm">ביטול</button>
+                <button onclick="saveCustomWords()" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm">שמור והתחל משחק</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // מאגרי מילים מותאמים לכיתה ח'
+        const wordBank = {
+            vocab: [
+                { a: "Environment", b: "סביבה", langA: "en", langB: "he" },
+                { a: "Opportunity", b: "הזדמנות", langA: "en", langB: "he" },
+                { a: "Challenge", b: "אתגר", langA: "en", langB: "he" },
+                { a: "Experience", b: "חוויה / ניסיון", langA: "en", langB: "he" },
+                { a: "Immediately", b: "מיד", langA: "en", langB: "he" },
+                { a: "Solution", b: "פתרון", langA: "en", langB: "he" },
+                { a: "Persuade", b: "לשכנע", langA: "en", langB: "he" },
+                { a: "Achievement", b: "הישג", langA: "en", langB: "he" },
+                { a: "Advantage", b: "יתרון", langA: "en", langB: "he" },
+                { a: "Behavior", b: "התנהגות", langA: "en", langB: "he" },
+                { a: "Community", b: "קהילה", langA: "en", langB: "he" },
+                { a: "Encourage", b: "לעודד", langA: "en", langB: "he" }
+            ],
+            verbs: [
+                { a: "Catch (לתפוס)", b: "Caught", langA: "en", langB: "en" },
+                { a: "Bring (להביא)", b: "Brought", langA: "en", langB: "en" },
+                { a: "Choose (לבחור)", b: "Chose", langA: "en", langB: "en" },
+                { a: "Freeze (לקפוא)", b: "Froze", langA: "en", langB: "en" },
+                { a: "Speak (לדבר)", b: "Spoke", langA: "en", langB: "en" },
+                { a: "Write (לכתוב)", b: "Wrote", langA: "en", langB: "en" },
+                { a: "Understand", b: "Understood", langA: "en", langB: "en" },
+                { a: "Become", b: "Became", langA: "en", langB: "en" }
+            ],
+            idioms: [
+                { a: "Piece of cake", b: "Very easy", langA: "en", langB: "en" },
+                { a: "Break a leg", b: "Good luck", langA: "en", langB: "en" },
+                { a: "Under the weather", b: "Feeling sick", langA: "en", langB: "en" },
+                { a: "Once in a blue moon", b: "Very rarely", langA: "en", langB: "en" },
+                { a: "Hit the books", b: "Study hard", langA: "en", langB: "en" },
+                { a: "Cost an arm", b: "Very expensive", langA: "en", langB: "en" },
+                { a: "Spill the beans", b: "Reveal secret", langA: "en", langB: "en" },
+                { a: "See eye to eye", b: "Agree completely", langA: "en", langB: "en" }
+            ],
+            synonyms: [
+                { a: "Ancient", b: "Very Old", langA: "en", langB: "en" },
+                { a: "Enormous", b: "Huge", langA: "en", langB: "en" },
+                { a: "Exhausted", b: "Very Tired", langA: "en", langB: "en" },
+                { a: "Fortunate", b: "Lucky", langA: "en", langB: "en" },
+                { a: "Purchase", b: "Buy", langA: "en", langB: "en" },
+                { a: "Rapid", b: "Fast", langA: "en", langB: "en" },
+                { a: "Attempt", b: "Try", langA: "en", langB: "en" },
+                { a: "Discover", b: "Find out", langA: "en", langB: "en" }
+            ],
+            custom: []
+        };
+
+        let playerName = localStorage.getItem('english_game_player') || '';
+        let currentMode = 1; // 1 or 2 players
+        let currentPlayer = 1;
+        let p2Name = "שחקן 2";
+        let scores = { 1: 0, 2: 0 };
+        let flippedCards = [];
+        let matchedCount = 0;
+        let totalPairsInGame = 8;
+        let moves = 0;
+        let seconds = 0;
+        let timerInterval = null;
+        let lockBoard = false;
+        let audioEnabled = true;
+        let hintsRemaining = 2;
+
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let soundCtx = null;
+
+        function playTone(freq, type = 'sine', duration = 0.12) {
+            if (!audioEnabled) return;
+            try {
+                if (!soundCtx) soundCtx = new AudioCtx();
+                const osc = soundCtx.createOscillator();
+                const gain = soundCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, soundCtx.currentTime);
+                gain.gain.setValueAtTime(0.08, soundCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, soundCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(soundCtx.destination);
+                osc.start();
+                osc.stop(soundCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        function speakEnglish(text) {
+            if (!audioEnabled || !('speechSynthesis' in window)) return;
+            const cleanEnglish = text.replace(/\([^)]*\)/g, '').trim();
+            if (!/[a-zA-Z]/.test(cleanEnglish)) return;
+
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(cleanEnglish);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.92;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function toggleAudio() {
+            audioEnabled = !audioEnabled;
+            document.getElementById('audioIcon').innerText = audioEnabled ? '🔊' : '🔇';
+            document.getElementById('audioText').innerText = audioEnabled ? 'הגייה' : 'מושתק';
+        }
+
+        window.onload = function () {
+            if (!playerName) {
+                openNameModal();
+            } else {
+                updatePlayerUI();
+                initGame();
+            }
+        };
+
+        function openNameModal() {
+            document.getElementById('playerNameInput').value = playerName;
+            const modal = document.getElementById('nameModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function savePlayerName() {
+            const input = document.getElementById('playerNameInput').value.trim();
+            if (input) {
+                playerName = input;
+                localStorage.setItem('english_game_player', playerName);
+            } else {
+                playerName = "אורח";
+            }
+            updatePlayerUI();
+            const modal = document.getElementById('nameModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            initGame();
+        }
+
+        function updatePlayerUI() {
+            document.getElementById('currentProfileName').innerText = playerName || 'אורח';
+            document.getElementById('p1LabelName').innerText = `🔵 ${playerName || 'שחקן 1'}`;
+        }
+
+        function setMode(players) {
+            currentMode = players;
+            const btn1 = document.getElementById('mode1P');
+            const btn2 = document.getElementById('mode2P');
+            const stats1 = document.getElementById('stats1P');
+            const stats2 = document.getElementById('stats2P');
+
+            if (players === 1) {
+                btn1.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition bg-white text-indigo-700 shadow-sm";
+                btn2.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900";
+                stats1.classList.remove('hidden');
+                stats1.classList.add('flex');
+                stats2.classList.add('hidden');
+                stats2.classList.remove('flex');
+            } else {
+                btn2.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition bg-white text-indigo-700 shadow-sm";
+                btn1.className = "px-3 py-1.5 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900";
+                stats2.classList.remove('hidden');
+                stats2.classList.add('flex');
+                stats1.classList.add('hidden');
+                stats1.classList.remove('flex');
+
+                let p2Prompt = prompt("הכנס את שם השחקן השני (רשות):", "חבר/ה");
+                if (p2Prompt) p2Name = p2Prompt;
+                document.getElementById('p2LabelName').innerText = `🔴 ${p2Name}`;
+            }
+            initGame();
+        }
+
+        function initGame() {
+            const category = document.getElementById('categorySelect').value;
+            const fullPool = [...wordBank[category]];
+            fullPool.sort(() => Math.random() - 0.5);
+            const selectedPairs = fullPool.slice(0, 8);
+            totalPairsInGame = selectedPairs.length;
+
+            flippedCards = [];
+            matchedCount = 0;
+            moves = 0;
+            seconds = 0;
+            currentPlayer = 1;
+            scores = { 1: 0, 2: 0 };
+            lockBoard = false;
+            hintsRemaining = 2;
+
+            document.getElementById('movesCount').innerText = '0';
+            document.getElementById('matchesCount').innerText = '0';
+            document.getElementById('timerDisplay').innerText = '00:00';
+            document.getElementById('hintsLeft').innerText = hintsRemaining;
+            document.getElementById('hintBtn').disabled = false;
+            document.getElementById('hintBtn').classList.remove('opacity-50', 'cursor-not-allowed');
+            document.getElementById('learnedList').innerHTML = '<span class="text-slate-400">עדיין לא נמצאו זוגות. הפכו שני קלפים כדי להתחיל!</span>';
+
+            updateTurnUI();
+            clearInterval(timerInterval);
+            startTimer();
+
+            const deck = [];
+            selectedPairs.forEach((pair, idx) => {
+                deck.push({ pairId: idx, text: pair.a, lang: pair.langA, fullPair: pair });
+                deck.push({ pairId: idx, text: pair.b, lang: pair.langB, fullPair: pair });
+            });
+
+            deck.sort(() => Math.random() - 0.5);
+
+            const board = document.getElementById('gameBoard');
+            board.innerHTML = '';
+
+            deck.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'card perspective h-28 sm:h-32 cursor-pointer';
+                card.dataset.pairId = item.pairId;
+                card.dataset.text = item.text;
+                card.dataset.pairA = item.fullPair.a;
+                card.dataset.pairB = item.fullPair.b;
+
+                const isEnglish = /[a-zA-Z]/.test(item.text);
+
+                card.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-front">
+                            <span class="text-xs font-bold text-indigo-200 absolute top-2 right-3">${index + 1}</span>
+                            <span class="text-3xl">✨</span>
+                        </div>
+                        <div class="card-back">
+                            <span class="text-center font-bold ${isEnglish ? 'english-text text-base sm:text-lg' : 'text-base sm:text-lg'} leading-snug" dir="${isEnglish ? 'ltr' : 'rtl'}">
+                                ${item.text}
+                            </span>
+                            <span class="text-[10px] font-semibold text-slate-400 mt-1 uppercase">
+                                ${isEnglish ? 'EN 🇬🇧' : 'HE 🇮🇱'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => handleCardClick(card));
+                board.appendChild(card);
+            });
+        }
+
+        function handleCardClick(card) {
+            if (lockBoard) return;
+            if (card.classList.contains('flipped') || card.classList.contains('matched')) return;
+
+            card.classList.add('flipped');
+            playTone(440, 'sine', 0.08);
+
+            if (/[a-zA-Z]/.test(card.dataset.text)) {
+                speakEnglish(card.dataset.text);
+            }
+
+            flippedCards.push(card);
+
+            if (flippedCards.length === 2) {
+                moves++;
+                document.getElementById('movesCount').innerText = moves;
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            const [c1, c2] = flippedCards;
+            const isMatch = c1.dataset.pairId === c2.dataset.pairId;
+
+            if (isMatch) {
+                c1.classList.add('matched');
+                c2.classList.add('matched');
+                playTone(587.33, 'triangle', 0.15);
+                setTimeout(() => playTone(880, 'triangle', 0.25), 120);
+
+                matchedCount++;
+                document.getElementById('matchesCount').innerText = matchedCount;
+
+                if (currentMode === 2) {
+                    scores[currentPlayer]++;
+                    updateTurnUI();
+                }
+
+                addMatchedBadge(c1.dataset.pairA, c1.dataset.pairB);
+                flippedCards = [];
+
+                if (matchedCount === totalPairsInGame) {
+                    setTimeout(showWinModal, 500);
+                }
+            } else {
+                lockBoard = true;
+                c1.classList.add('wrong');
+                c2.classList.add('wrong');
+                playTone(220, 'sawtooth', 0.2);
+
+                setTimeout(() => {
+                    c1.classList.remove('flipped', 'wrong');
+                    c2.classList.remove('flipped', 'wrong');
+                    flippedCards = [];
+
+                    if (currentMode === 2) {
+                        currentPlayer = currentPlayer === 1 ? 2 : 1;
+                        updateTurnUI();
+                    }
+                    lockBoard = false;
+                }, 1150);
+            }
+        }
+
+        function addMatchedBadge(wordA, wordB) {
+            const container = document.getElementById('learnedList');
+            if (matchedCount === 1) container.innerHTML = '';
+
+            const badge = document.createElement('button');
+            badge.className = "px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition";
+            badge.innerHTML = `<span class="english-text">${wordA}</span> <span>=</span> <span>${wordB}</span> <span>🔊</span>`;
+            badge.onclick = () => speakEnglish(wordA);
+            container.appendChild(badge);
+        }
+
+        function updateTurnUI() {
+            document.getElementById('p1Score').innerText = scores[1];
+            document.getElementById('p2Score').innerText = scores[2];
+
+            const p1Box = document.getElementById('p1Box');
+            const p2Box = document.getElementById('p2Box');
+            const p1Badge = document.getElementById('p1TurnBadge');
+            const p2Badge = document.getElementById('p2TurnBadge');
+
+            if (currentPlayer === 1) {
+                p1Box.className = "flex-1 p-2 rounded-xl border-2 border-indigo-600 bg-indigo-50/70 text-center transition";
+                p2Box.className = "flex-1 p-2 rounded-xl border-2 border-transparent bg-slate-50 text-center opacity-70 transition";
+                p1Badge.classList.remove('hidden');
+                p2Badge.classList.add('hidden');
+            } else {
+                p2Box.className = "flex-1 p-2 rounded-xl border-2 border-rose-600 bg-rose-50/70 text-center transition";
+                p1Box.className = "flex-1 p-2 rounded-xl border-2 border-transparent bg-slate-50 text-center opacity-70 transition";
+                p2Badge.classList.remove('hidden');
+                p1Badge.classList.add('hidden');
+            }
+        }
+
+        function useHint() {
+            if (hintsRemaining <= 0 || lockBoard) return;
+            hintsRemaining--;
+            document.getElementById('hintsLeft').innerText = hintsRemaining;
+            if (hintsRemaining === 0) {
+                const btn = document.getElementById('hintBtn');
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+
+            lockBoard = true;
+            const unMatched = document.querySelectorAll('.card:not(.matched):not(.flipped)');
+            unMatched.forEach(c => c.classList.add('flipped'));
+
+            setTimeout(() => {
+                unMatched.forEach(c => c.classList.remove('flipped'));
+                lockBoard = false;
+            }, 1200);
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                seconds++;
+                const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
+                const secs = String(seconds % 60).padStart(2, '0');
+                document.getElementById('timerDisplay').innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function saveScoreToLeaderboard(name, movesCount, timeStr, timeSecs) {
+            let board = JSON.parse(localStorage.getItem('english_game_leaderboard') || '[]');
+            board.push({ name: name || 'אורח', moves: movesCount, time: timeStr, timeSecs: timeSecs, date: new Date().toLocaleDateString('he-IL') });
+            // מיון לפי פחות מהלכים ואז זמן קצר יותר
+            board.sort((a, b) => a.moves - b.moves || a.timeSecs - b.timeSecs);
+            board = board.slice(0, 10); // שמירת 10 המובילים
+            localStorage.setItem('english_game_leaderboard', JSON.stringify(board));
+        }
+
+        function showWinModal() {
+            clearInterval(timerInterval);
+            const timeStr = document.getElementById('timerDisplay').innerText;
+            document.getElementById('finalMoves').innerText = moves;
+            document.getElementById('finalTime').innerText = timeStr;
+
+            const title = document.getElementById('winTitle');
+            const subtitle = document.getElementById('winSubtitle');
+
+            if (currentMode === 1) {
+                title.innerText = `כל הכבוד, ${playerName || 'אלופים'}! 🏆`;
+                subtitle.innerText = "פיצחת את כל הזוגות בלוח בהצלחה!";
+                saveScoreToLeaderboard(playerName, moves, timeStr, seconds);
+            } else {
+                if (scores[1] > scores[2]) {
+                    title.innerText = `🔵 ${playerName || 'שחקן 1'} ניצח!`;
+                    subtitle.innerText = `ניצחון מרשים בתוצאה ${scores[1]} מול ${scores[2]}!`;
+                } else if (scores[2] > scores[1]) {
+                    title.innerText = `🔴 ${p2Name} ניצח!`;
+                    subtitle.innerText = `ניצחון מרשים בתוצאה ${scores[2]} מול ${scores[1]}!`;
+                } else {
+                    title.innerText = "🤝 תיקו מותח!";
+                    subtitle.innerText = `שני השחקנים סיימו עם ${scores[1]} זוגות!`;
+                }
+            }
+
+            const modal = document.getElementById('winModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeWinModal() {
+            const modal = document.getElementById('winModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function openLeaderboardModal() {
+            const listEl = document.getElementById('leaderboardList');
+            const board = JSON.parse(localStorage.getItem('english_game_leaderboard') || '[]');
+
+            if (board.length === 0) {
+                listEl.innerHTML = `<div class="text-center py-6 text-slate-400 text-sm font-medium">עדיין אין שיאים שמורים. סיימו משחק כדי להופיע בטבלה!</div>`;
+            } else {
+                listEl.innerHTML = board.map((entry, idx) => `
+                    <div class="flex items-center justify-between p-3 rounded-xl ${idx === 0 ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-100'}">
+                        <div class="flex items-center gap-3">
+                            <span class="w-6 h-6 rounded-full ${idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-slate-300 text-slate-700' : idx === 2 ? 'bg-amber-700/60 text-white' : 'bg-slate-200 text-slate-600'} font-bold text-xs flex items-center justify-center">${idx + 1}</span>
+                            <span class="font-bold text-slate-800 text-sm">${entry.name}</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs font-bold">
+                            <span class="text-indigo-600">${entry.moves} מהלכים</span>
+                            <span class="text-emerald-600 english-text">${entry.time}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            const modal = document.getElementById('leaderboardModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeLeaderboardModal() {
+            const modal = document.getElementById('leaderboardModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function openCustomModal() {
+            const modal = document.getElementById('customModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeCustomModal() {
+            const modal = document.getElementById('customModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.getElementById('customError').classList.add('hidden');
+        }
+
+        function saveCustomWords() {
+            const raw = document.getElementById('customInput').value.trim();
+            const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+            const parsed = [];
+
+            lines.forEach(line => {
+                const parts = line.split(/[,-]/).map(s => s.trim()).filter(Boolean);
+                if (parts.length >= 2) {
+                    parsed.push({
+                        a: parts[0],
+                        b: parts.slice(1).join(' '),
+                        langA: /[a-zA-Z]/.test(parts[0]) ? 'en' : 'he',
+                        langB: /[a-zA-Z]/.test(parts[1]) ? 'en' : 'he'
+                    });
+                }
+            });
+
+            if (parsed.length < 4) {
+                document.getElementById('customError').classList.remove('hidden');
+                return;
+            }
+
+            wordBank.custom = parsed;
+            const customOpt = document.getElementById('customOption');
+            customOpt.classList.remove('hidden');
+            document.getElementById('categorySelect').value = 'custom';
+            closeCustomModal();
+            initGame();
+        }
+    </script>
+</body>
+</html>

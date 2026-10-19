@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משחק דמקה קלאסי</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Assistant', sans-serif;
+            background: linear-gradient(135deg, #1e1e2f 0%, #2a2a40 100%);
+            color: #f3f4f6;
+            min-height: 100vh;
+        }
+        .checkerboard {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            width: min(90vw, 480px);
+            height: min(90vw, 480px);
+            border: 6px solid #4a3525;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .square {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            user-select: none;
+            cursor: pointer;
+        }
+        .light {
+            background-color: #f0d9b5;
+        }
+        .dark {
+            background-color: #b58863;
+        }
+        .square.highlight {
+            background-color: #7b9c50 !important;
+        }
+        .square.selected {
+            background-color: #64748b !important;
+        }
+        .piece {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.4);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            position: relative;
+            z-index: 10;
+        }
+        .piece:hover {
+            transform: scale(1.05);
+        }
+        .piece.red {
+            background: radial-gradient(circle at 30% 30%, #ef4444, #991b1b);
+            border: 2px solid #fca5a5;
+        }
+        .piece.black {
+            background: radial-gradient(circle at 30% 30%, #4b5563, #111827);
+            border: 2px solid #9ca3af;
+        }
+        .piece.king::after {
+            content: '👑';
+            font-size: 1.25rem;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-between min-h-screen p-4">
+
+    <header class="text-center my-2">
+        <h1 class="text-3xl md:text-4xl font-bold text-amber-400 drop-shadow-md">דמקה קלאסי</h1>
+        <p class="text-sm text-gray-300 mt-1">שחקו דמקה אמיתית ישירות בדפדפן - כולל הכתרה למלכה ואכילת חובה!</p>
+    </header>
+
+    <!-- Game Control Bar & Status -->
+    <div class="flex flex-wrap items-center justify-center gap-4 bg-gray-800/80 backdrop-blur px-6 py-3 rounded-2xl shadow-lg border border-gray-700 my-2">
+        <div id="status-message" class="text-lg font-semibold text-amber-300">תור שחקן: אדום</div>
+        <div class="flex gap-2 text-sm">
+            <span class="bg-red-900/60 text-red-200 px-3 py-1 rounded-lg border border-red-700">כלים אדומים: <strong id="red-count">12</strong></span>
+            <span class="bg-gray-700 text-gray-200 px-3 py-1 rounded-lg border border-gray-600">כלים שחורים: <strong id="black-count">12</strong></span>
+        </div>
+        <button onclick="resetGame()" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-1.5 rounded-xl font-bold shadow transition transform active:scale-95">משחק חדש</button>
+    </div>
+
+    <main class="flex flex-col items-center justify-center my-auto">
+        <div id="board" class="checkerboard"></div>
+    </main>
+
+    <!-- Custom Notification Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center hidden z-50">
+        <div class="bg-gray-800 border border-amber-500/50 p-6 rounded-2xl shadow-2xl text-center max-w-sm w-full mx-4 animate-bounce-in">
+            <h3 id="modal-title" class="text-2xl font-bold text-amber-400 mb-2">סיום המשחק</h3>
+            <p id="modal-text" class="text-gray-300 mb-6">השחקן המנצח הוא...</p>
+            <button onclick="closeModalAndReset()" class="bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold px-6 py-2 rounded-xl shadow transition">שחק שוב</button>
+        </div>
+    </div>
+
+    <script>
+        let board = [];
+        let turn = 'red'; // 'red' or 'black'
+        let selectedPiece = null; // {r, c}
+        let validMoves = []; // Array of {r, c, jumpedPiece: {r, c}}
+        let redCount = 12;
+        let blackCount = 12;
+
+        function initBoard() {
+            board = [];
+            for (let r = 0; r < 8; r++) {
+                board[r] = [];
+                for (let c = 0; c < 8; c++) {
+                    if ((r + c) % 2 === 1) {
+                        if (r < 3) {
+                            board[r][c] = { player: 'black', king: false };
+                        } else if (r > 4) {
+                            board[r][c] = { player: 'red', king: false };
+                        } else {
+                            board[r][c] = null;
+                        }
+                    } else {
+                        board[r][c] = null;
+                    }
+                }
+            }
+            turn = 'red';
+            selectedPiece = null;
+            validMoves = [];
+            redCount = 12;
+            blackCount = 12;
+            updateUI();
+        }
+
+        function getValidMovesForPiece(r, c) {
+            const piece = board[r][c];
+            if (!piece) return [];
+            
+            let moves = [];
+            let directions = [];
+            
+            if (piece.player === 'red' || piece.king) {
+                directions.push([-1, -1], [-1, 1]); // Forward for red
+            }
+            if (piece.player === 'black' || piece.king) {
+                directions.push([1, -1], [1, 1]); // Forward for black (downwards)
+            }
+
+            // Check standard moves and jumps
+            for (let [dr, dc] of directions) {
+                let nr = r + dr;
+                let nc = c + dc;
+                
+                if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                    if (board[nr][nc] === null) {
+                        moves.push({ r: nr, c: nc, jump: null });
+                    } else if (board[nr][nc].player !== piece.player) {
+                        // Check jump over opponent
+                        let nnr = nr + dr;
+                        let nnc = nc + dc;
+                        if (nnr >= 0 && nnr < 8 && nnc >= 0 && nnc < 8 && board[nnr][nnc] === null) {
+                            moves.push({ r: nnr, c: nnc, jump: { r: nr, c: nc } });
+                        }
+                    }
+                }
+            }
+            return moves;
+        }
+
+        function handleSquareClick(r, c) {
+            const piece = board[r][c];
+
+            // If clicking on a valid target move destination
+            const targetMove = validMoves.find(m => m.r === r && m.c === c);
+            if (targetMove) {
+                executeMove(selectedPiece.r, selectedPiece.c, targetMove);
+                return;
+            }
+
+            // If clicking on own piece to select
+            if (piece && piece.player === turn) {
+                selectedPiece = { r, c };
+                validMoves = getValidMovesForPiece(r, c);
+                renderBoard();
+                return;
+            }
+
+            // Otherwise deselect
+            selectedPiece = null;
+            validMoves = [];
+            renderBoard();
+        }
+
+        function executeMove(fromR, fromC, move) {
+            let piece = board[fromR][fromC];
+            board[fromR][fromC] = null;
+            board[move.r][move.c] = piece;
+
+            // Handle jump capture
+            if (move.jump) {
+                const captured = board[move.jump.r][move.jump.c];
+                board[move.jump.r][move.jump.c] = null;
+                if (captured.player === 'red') redCount--;
+                else blackCount--;
+            }
+
+            // Crown to King
+            if (piece.player === 'red' && move.r === 0) piece.king = true;
+            if (piece.player === 'black' && move.r === 7) piece.king = true;
+
+            // Reset selection & switch turn
+            selectedPiece = null;
+            validMoves = [];
+            turn = turn === 'red' ? 'black' : 'red';
+
+            updateUI();
+            checkWinCondition();
+        }
+
+        function checkWinCondition() {
+            let redHasMoves = false;
+            let blackHasMoves = false;
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (board[r][c]) {
+                        let moves = getValidMovesForPiece(r, c);
+                        if (moves.length > 0) {
+                            if (board[r][c].player === 'red') redHasMoves = true;
+                            else blackHasMoves = true;
+                        }
+                    }
+                }
+            }
+
+            if (redCount === 0 || (!redHasMoves && turn === 'red')) {
+                showModal('שחקן שחור ניצח!', 'כל הכבוד לשחקן השחור שניצח במשחק.');
+            } else if (blackCount === 0 || (!blackHasMoves && turn === 'black')) {
+                showModal('שחקן אדום ניצח!', 'כל הכבוד לשחקן האדום שניצח במשחק.');
+            }
+        }
+
+        function showModal(title, text) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-text').innerText = text;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        function closeModalAndReset() {
+            document.getElementById('modal').classList.add('hidden');
+            initBoard();
+        }
+
+        function resetGame() {
+            initBoard();
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const square = document.createElement('div');
+                    square.className = `square ${(r + c) % 2 === 1 ? 'dark' : 'light'}`;
+
+                    // Highlight selected piece
+                    if (selectedPiece && selectedPiece.r === r && selectedPiece.c === c) {
+                        square.classList.add('selected');
+                    }
+
+                    // Highlight valid moves
+                    const isValidTarget = validMoves.some(m => m.r === r && m.c === c);
+                    if (isValidTarget) {
+                        square.classList.add('highlight');
+                    }
+
+                    // Render piece if present
+                    const piece = board[r][c];
+                    if (piece) {
+                        const pieceEl = document.createElement('div');
+                        pieceEl.className = `piece ${piece.player} ${piece.king ? 'king' : ''}`;
+                        square.appendChild(pieceEl);
+                    }
+
+                    square.addEventListener('click', () => handleSquareClick(r, c));
+                    boardEl.appendChild(square);
+                }
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('red-count').innerText = redCount;
+            document.getElementById('black-count').innerText = blackCount;
+            const statusEl = document.getElementById('status-message');
+            if (turn === 'red') {
+                statusEl.innerText = 'תור שחקן: אדום';
+                statusEl.className = 'text-lg font-semibold text-red-400';
+            } else {
+                statusEl.innerText = 'תור שחקן: שחור';
+                statusEl.className = 'text-lg font-semibold text-gray-300';
+            }
+            renderBoard();
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            initBoard();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מסע המחקר: תעלומת פומפֵיי</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js for immersive sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Assistant -->
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Assistant', sans-serif;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e293b 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .parchment {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #78350f;
+        }
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        }
+        @keyframes pulseGlow {
+            0%, 100% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.03); filter: brightness(1.15); }
+        }
+        .glow-effect {
+            animation: pulseGlow 3s infinite ease-in-out;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e1b4b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #f59e0b;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-100vh selection:bg-amber-500 selection:text-white">
+
+    <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/60 sticky top-0 z-50 px-4 py-3">
+        <div class="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3 space-x-reverse">
+                <div class="bg-amber-500 text-slate-950 p-2.5 rounded-2xl font-bold text-xl shadow-lg">
+                    <i class="fa-solid fa-landmark"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-wide text-amber-400">תעלומת פומפֵיי</h1>
+                    <p class="text-xs text-slate-400">משחק מחקר ארכיאולוגי לבני נוער</p>
+                </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="flex items-center gap-3 md:gap-6 flex-wrap">
+                <!-- Budget -->
+                <div class="bg-slate-800/90 border border-slate-700 px-3.5 py-1.5 rounded-xl flex items-center gap-2 shadow-inner">
+                    <i class="fa-solid fa-coins text-amber-400"></i>
+                    <div>
+                        <div class="text-[10px] text-slate-400 font-semibold">תקציב</div>
+                        <div id="stat-budget" class="text-sm font-bold text-amber-300">10,000 ₪</div>
+                    </div>
+                </div>
+                <!-- Energy -->
+                <div class="bg-slate-800/90 border border-slate-700 px-3.5 py-1.5 rounded-xl flex items-center gap-2 shadow-inner">
+                    <i class="fa-solid fa-bolt text-emerald-400"></i>
+                    <div>
+                        <div class="text-[10px] text-slate-400 font-semibold">אנרגיית צוות</div>
+                        <div id="stat-energy" class="text-sm font-bold text-emerald-300">100%</div>
+                    </div>
+                </div>
+                <!-- Research Points -->
+                <div class="bg-slate-800/90 border border-slate-700 px-3.5 py-1.5 rounded-xl flex items-center gap-2 shadow-inner">
+                    <i class="fa-solid fa-magnifying-glass-chart text-cyan-400"></i>
+                    <div>
+                        <div class="text-[10px] text-slate-400 font-semibold">נקודות מחקר</div>
+                        <div id="stat-research" class="text-sm font-bold text-cyan-300">0 / 100</div>
+                    </div>
+                </div>
+                <!-- Sound Toggle -->
+                <button onclick="toggleSound()" id="sound-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2.5 rounded-xl transition border border-slate-700">
+                    <i class="fa-solid fa-volume-high" id="sound-icon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6">
+
+        <!-- Welcome / Intro Screen Overlay -->
+        <div id="intro-screen" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="bg-slate-900 border-2 border-amber-500/40 rounded-3xl max-w-xl w-full p-6 md:p-8 card-shadow flex flex-col gap-6 text-center">
+                <div class="w-20 h-20 bg-amber-500/20 text-amber-400 rounded-3xl mx-auto flex items-center justify-center text-4xl glow-effect">
+                    <i class="fa-solid fa-scroll"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl md:text-3xl font-extrabold text-amber-400 mb-2">ברוך הבא למשלחת פומפֵיי!</h2>
+                    <p class="text-slate-300 text-sm md:text-base leading-relaxed">
+                        אתה ראש צוות המחקר והפיתוח. שנת 79 לספירה התפרץ הר הגעש וזוב והטמין מתחת לאפר עיר רומית שלמה. המשימה שלך: לחקור את האתר, לנהל את התקציב בתבונה, לשלוח את חברי הצוות למשימות, לפתור חידות היסטוריות ולגלות את סודות העיר!
+                    </p>
+                </div>
+                <div class="grid grid-cols-3 gap-3 text-xs text-slate-400 bg-slate-800/60 p-4 rounded-2xl border border-slate-700/50">
+                    <div><i class="fa-solid fa-users text-amber-400 text-lg mb-1 block"></i>3 אנשי צוות מומחים</div>
+                    <div><i class="fa-solid fa-map-location-dot text-cyan-400 text-lg mb-1 block"></i>4 אתרי חפירה מרתקים</div>
+                    <div><i class="fa-solid fa-puzzle-piece text-emerald-400 text-lg mb-1 block"></i>חידות מדעיות והיסטוריות</div>
+                </div>
+                <button onclick="startGame()" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extxl font-bold py-4 px-8 rounded-2xl shadow-xl transition transform active:scale-95 text-lg">
+                    <i class="fa-solid fa-play ml-2"></i> התחל במשלחת המחקר!
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left 2 Columns: Excavation Site & Active Missions -->
+            <div class="lg:col-span-2 flex flex-col gap-6">
+                
+                <!-- Map / Site Selector -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 card-shadow">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-amber-400 flex items-center gap-2">
+                            <i class="fa-solid fa-map"></i> מפת אתר החפירות בפומפֵיי
+                        </h3>
+                        <span class="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-full border border-slate-700">בחר אתר לחפירה</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="sites-container">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+
+                <!-- Active Expedition Log / Team Advisors -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 card-shadow flex flex-col gap-4">
+                    <h3 class="text-lg font-bold text-cyan-400 flex items-center gap-2">
+                        <i class="fa-solid fa-user-tie"></i> יועצי המשלחת שלך
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="team-container">
+                        <!-- Team members populated via JS -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Control Panel, Events & Progress -->
+            <div class="flex flex-col gap-6">
+                
+                <!-- Expedition Status & Goal -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 card-shadow flex flex-col gap-4">
+                    <h3 class="text-lg font-bold text-emerald-400 flex items-center gap-2">
+                        <i class="fa-solid fa-flag-checkered"></i> יעד התעלומה
+                    </h3>
+                    <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700/60">
+                        <div class="flex justify-between text-xs text-slate-400 mb-2">
+                            <span>פענוח תעלומת העיר</span>
+                            <span id="progress-percent">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-700 h-3 rounded-full overflow-hidden">
+                            <div id="progress-bar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full w-0 transition-all duration-500"></div>
+                        </div>
+                        <p id="mission-status-text" class="text-xs text-slate-300 mt-3 leading-relaxed">
+                            התחל לחקור את האתרים השונים ולענות על שאלות המחקר כדי לחשוף את ההיסטוריה של פומפֵיי.
+                        </p>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="triggerRandomEvent()" class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 py-3 px-4 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-triangle-exclamation"></i> אירוע שטח
+                        </button>
+                        <button onclick="restTeam()" class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 py-3 px-4 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-mug-hot"></i> הפסקת קפה
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Recent Artifacts Discovered -->
+                <div class="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 card-shadow flex-1 flex flex-col">
+                    <h3 class="text-lg font-bold text-amber-400 flex items-center gap-2 mb-3">
+                        <i class="fa-solid fa-gem"></i> מוזיאון הממצאים (<span id="artifacts-count">0</span>/4)
+                    </h3>
+                    <div id="artifacts-list" class="flex flex-col gap-3 flex-1 overflow-y-auto max-h-[300px] pr-1">
+                        <div class="text-center text-slate-500 text-sm py-8">
+                            טרם התגלו ממצאים. התחל בחפירות כדי למצוא פריטים עתיקים!
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <div id="modal-overlay" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div id="modal-content" class="bg-slate-900 border-2 border-cyan-500/40 rounded-3xl max-w-lg w-full p-6 md:p-8 card-shadow flex flex-col gap-5">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                <h3 id="modal-title" class="text-xl font-bold text-cyan-400 flex items-center gap-2">
+                    <i class="fa-solid fa-book-open"></i> שאלה מדעית / היסטורית
+                </h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div id="modal-body" class="flex flex-col gap-4">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <div id="notification-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-md w-full p-6 card-shadow flex flex-col gap-4 text-center">
+            <div id="notif-icon" class="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-2xl mx-auto flex items-center justify-center text-3xl">
+                <i class="fa-solid fa-circle-info"></i>
+            </div>
+            <h3 id="notif-title" class="text-xl font-bold text-amber-400">הודעת מערכת</h3>
+            <p id="notif-message" class="text-slate-300 text-sm leading-relaxed"></p>
+            <button onclick="closeNotification()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-6 rounded-xl transition">
+                הבנתי, המשך!
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Game State Variables
+        let gameState = {
+            budget: 10000,
+            energy: 100,
+            researchPoints: 0,
+            maxResearch: 100,
+            artifactsCount: 0,
+            soundEnabled: true,
+            discoveredArtifacts: []
+        };
+
+        // Audio synthesizer using Tone.js
+        let synth;
+        try {
+            synth = new Tone.Synth().toDestination();
+        } catch(e) {
+            console.log("Audio context not started yet.");
+        }
+
+        function playSound(type) {
+            if (!gameState.soundEnabled) return;
+            try {
+                if (Tone.context.state !== 'running') {
+                    Tone.start();
+                }
+                if (type === 'click') {
+                    synth.triggerAttackRelease("C5", "16n");
+                } else if (type === 'success') {
+                    synth.triggerAttackRelease("G5", "8n");
+                } else if (type === 'error') {
+                    synth.triggerAttackRelease("C3", "8n");
+                } else if (type === 'win') {
+                    synth.triggerAttackRelease("E5", "8n");
+                    setTimeout(() => synth.triggerAttackRelease("G5", "4n"), 150);
+                }
+            } catch(e) {
+                // Ignore audio errors if blocked by browser
+            }
+        }
+
+        function toggleSound() {
+            gameState.soundEnabled = !gameState.soundEnabled;
+            const icon = document.getElementById('sound-icon');
+            if (gameState.soundEnabled) {
+                icon.className = "fa-solid fa-volume-high";
+                showNotification("צלילים", "הצלילים הופעלו בהצלחה.", "fa-volume-high");
+            } else {
+                icon.className = "fa-solid fa-volume-xmark";
+                showNotification("צלילים", "הצלילים הושתקו.", "fa-volume-xmark");
+            }
+        }
+
+        // Excavation Sites Data
+        const sites = [
+            {
+                id: 1,
+                name: "הפורום הרומי (המרכז הציבורי)",
+                icon: "fa-columns",
+                desc: "מרכז החיים הציבוריים, המסחר והדת בעיר העתיקה.",
+                cost: 1500,
+                energyCost: 15,
+                rewardRP: 25,
+                artifactName: "מטבע זהב קיסרי עתיק",
+                artifactDesc: "מטבע עם דיוקנו של הקיסר טיטוס ששימש למסחר מקומי.",
+                question: "מה היה תפקידו העיקרי של הפורום בערי האימפריה הרומית?",
+                options: [
+                    "מרכז לפעילות דתית, מסחר ומשפט ציבורי",
+                    "מחנה צבאי סודי של הלגיון הרומאי",
+                    "אצטדיון ענק למרווחי מרכבות סוסים בלבד",
+                    "ארמון פרטי של קיסר רומא"
+                ],
+                correct: 0
+            },
+            {
+                id: 2,
+                name: "בית הפון (אחוזה רומית מפוארת)",
+                icon: "fa-house-chimney",
+                desc: "בית אצולה ענק המעוטר בפסיפסים מדהימים ובציורי קיר נדירים.",
+                cost: 2500,
+                energyCost: 25,
+                rewardRP: 30,
+                artifactName: "פסיפס אלכסנדר מוקדון",
+                artifactDesc: "יצירת אמנות מרהיבה המציגה את הקרב ההיסטורי של אלכסנדר.",
+                question: "איזה חומר שימש את הרומאים ליצירת פסיפסי הרצפה המפורסמים בפומפֵיי?",
+                options: [
+                    "אבני פלסטיק צבעוניות שהומצאו באותה תקופה",
+                    "אבנים קטנות צבעוניות (טסליי) וזכוכית מותכת",
+                    "חתיכות עץ אלון צבועות בצבעי שמן",
+                    "חמר רך שהתקשה בשמש ללא שריפה"
+                ],
+                correct: 1
+            },
+            {
+                id: 3,
+                name: "האמפיתיאטרון של פומפֵיי",
+                icon: "fa-masks-theater",
+                desc: "האמפיתיאטרון הרומאי העתיק ביותר ששרד עד היום, אירח קרבות גלדיאטורים.",
+                cost: 2000,
+                energyCost: 20,
+                rewardRP: 25,
+                artifactName: "קסדת גלדיאטור רומאי",
+                artifactDesc: "קסדת ברונזה כבדה שנשמרה בשלמותה מתחת לאפר הווזוב.",
+                question: "באיזו שנה התפרץ הר הגעש וזוב והחריב את העיר פומפֵיי?",
+                options: [
+                    "שנת 476 לספירה (נפילת האימפריה)",
+                    "שנת 79 לספירה",
+                    "שנת 313 לספירה (צו מילאנו)",
+                    "שנת 100 לפנה\"ס"
+                ],
+                correct: 1
+            },
+            {
+                id: 4,
+                name: "מעבדת המחקר הגאולוגי",
+                icon: "fa-flask",
+                desc: "בחינה מעמיקה של שכבות האפר הוולקני והשפעות ההתפרצות על הסביבה.",
+                cost: 2000,
+                energyCost: 25,
+                rewardRP: 20,
+                artifactName: "גליל פפירוס משוחזר",
+                artifactDesc: "מגילת פפירוס המכילה רישומים מדעיים על תופעות הטבע.",
+                question: "איזה סוג של הר געש הוא הווזוב ומה מאפיין את ההתפרצויות שלו?",
+                options: [
+                    "הר געש רגוע המייצר נהרות לווה איטיים בלבד",
+                    "הר געש מתפרץ ואלים המאופיין בענני אפר עצומים (התפרצות פליניאנית)",
+                    "הר געש תת-ימי בלבד שאינו משפיע על היבשה",
+                    "הר געש כבוי שאינו מסוכן לאיש"
+                ],
+                correct: 1
+            }
+        ];
+
+        // Team Advisors
+        const teamMembers = [
+            { name: "ד\"ר אלון", role: "ארכיאולוג ראשי", spec: "מומחה באיתור ממצאים עתיקים", icon: "fa-user-doctor" },
+            { name: "מאיה", role: "היסטוריונית", spec: "מומחית בניתוח כתובות וטקסטים", icon: "fa-graduation-cap" },
+            { name: "תומר", role: "גאולוג ואקולוג", spec: "מומחה בניתוח מינרלים ואפר וולקני", icon: "fa-mountain" }
+        ];
+
+        // Random Events Pool
+        const randomEvents = [
+            {
+                title: "ממטר פתאומי באתר החפירות!",
+                desc: "גשם פתאומי מאיים על שברי החרסים העתיקים. הצוות נדרש לפרוס בדפי הגנה מיידיים.",
+                costChange: -300,
+                energyChange: -10,
+                type: "warning"
+            },
+            {
+                title: "מענק מחקר ממשלתי חדש!",
+                desc: "משרד החינוך והתרבות התרשם מההתקדמות במחקר והעניק תקציב נוסף למשלחת!",
+                costChange: 1500,
+                energyChange: 5,
+                type: "success"
+            },
+            {
+                title: "גילוי מכתב עתיק במרתף בית!",
+                desc: "חברי הצוות מצאו מסמך מרתק שחוסך זמן רב בניתוח ההיסטורי של העיר.",
+                costChange: 0,
+                energyChange: 10,
+                type: "success"
+            }
+        ];
+
+        function startGame() {
+            playSound('success');
+            document.getElementById('intro-screen').classList.add('hidden');
+            renderSites();
+            renderTeam();
+            updateStats();
+        }
+
+        function renderSites() {
+            const container = document.getElementById('sites-container');
+            container.innerHTML = '';
+            sites.forEach((site, index) => {
+                const isCompleted = gameState.discoveredArtifacts.some(a => a.siteId === site.id);
+                container.innerHTML += `
+                    <div class="bg-slate-800/90 border ${isCompleted ? 'border-emerald-500/50 bg-emerald-950/20' : 'border-slate-700 hover:border-amber-500/50'} rounded-2xl p-4 flex flex-col justify-between transition gap-3">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+                                    <i class="fa-solid ${site.icon}"></i>
+                                </div>
+                                ${isCompleted ? '<span class="bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-1 rounded-full font-bold"><i class="fa-solid fa-check ml-1"></i> נחפר בהצלחה</span>' : ''}
+                            </div>
+                            <h4 class="font-bold text-base text-white mb-1">${site.name}</h4>
+                            <p class="text-xs text-slate-400 leading-relaxed">${site.desc}</p>
+                        </div>
+                        <div class="pt-3 border-t border-slate-700/60 flex items-center justify-between">
+                            <div class="text-xs flex gap-3 text-slate-300">
+                                <span><i class="fa-solid fa-coins text-amber-400 ml-1"></i>${site.cost} ₪</span>
+                                <span><i class="fa-solid fa-bolt text-emerald-400 ml-1"></i>${site.energyCost}%</span>
+                            </div>
+                            <button onclick="exploreSite(${site.id})" ${isCompleted ? 'disabled class="bg-slate-700 text-slate-500 cursor-not-allowed py-2 px-4 rounded-xl text-xs font-bold"' : 'class="bg-amber-500 hover:bg-amber-600 text-slate-950 py-2 px-4 rounded-xl text-xs font-bold transition"'}>
+                                ${isCompleted ? 'הושלם' : 'התחל חפירה'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderTeam() {
+            const container = document.getElementById('team-container');
+            container.innerHTML = '';
+            teamMembers.forEach(member => {
+                container.innerHTML += `
+                    <div class="bg-slate-800/70 border border-slate-700/70 p-3.5 rounded-2xl flex flex-col gap-2">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                                <i class="fa-solid ${member.icon}"></i>
+                            </div>
+                            <div>
+                                <h5 class="font-bold text-sm text-white">${member.name}</h5>
+                                <p class="text-[11px] text-cyan-300">${member.role}</p>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-slate-400">${member.spec}</p>
+                    </div>
+                `;
+            });
+        }
+
+        function updateStats() {
+            document.getElementById('stat-budget').innerText = gameState.budget.toLocaleString() + ' ₪';
+            document.getElementById('stat-energy').innerText = gameState.energy + '%';
+            document.getElementById('stat-research').innerText = gameState.researchPoints + ' / ' + gameState.maxResearch;
+            document.getElementById('artifacts-count').innerText = gameState.artifactsCount;
+            
+            const percent = Math.min(100, (gameState.researchPoints / gameState.maxResearch) * 100);
+            document.getElementById('progress-bar').style.width = percent + '%';
+            document.getElementById('progress-percent').innerText = Math.round(percent) + '%';
+
+            if (gameState.researchPoints >= gameState.maxResearch) {
+                document.getElementById('mission-status-text').innerHTML = '<span class="text-amber-400 font-bold">כל הכבוד! פענחת את תעלומת פומפֵיי בהצלחה מלאה!</span>';
+            }
+        }
+
+        function exploreSite(siteId) {
+            const site = sites.find(s => s.id === siteId);
+            if (gameState.budget < site.cost) {
+                playSound('error');
+                showNotification("אין תקציב מספיק!", "אין מספיק תקציב בקופה לביצוע החפירה באתר זה. נסה לבצע אירוע שטח או לחסוך משאבים.", "fa-coins");
+                return;
+            }
+            if (gameState.energy < site.energyCost) {
+                playSound('error');
+                showNotification("הצוות עייף מדי!", "אנשי הצוות זקוקים להפסקת קפה ומנוחה כדי לחדש את האנרגיה.", "fa-bolt");
+                return;
+            }
+
+            // Deduct resources
+            gameState.budget -= site.cost;
+            gameState.energy -= site.energyCost;
+            updateStats();
+            playSound('click');
+
+            // Open Quiz Modal
+            openQuizModal(site);
+        }
+
+        function openQuizModal(site) {
+            const modal = document.getElementById('modal-overlay');
+            const title = document.getElementById('modal-title');
+            const body = document.getElementById('modal-body');
+
+            title.innerHTML = `<i class="fa-solid fa-clipboard-question"></i> אתגר מחקר: ${site.name}`;
+            
+            let optionsHTML = '';
+            site.options.forEach((opt, idx) => {
+                optionsHTML += `
+                    <button onclick="checkAnswer(${site.id}, ${idx})" class="w-full text-right bg-slate-800 hover:bg-slate-700 border border-slate-700 p-3.5 rounded-xl text-sm font-semibold transition flex items-center gap-3">
+                        <span class="w-7 h-7 rounded-lg bg-slate-700 text-cyan-400 flex items-center justify-center text-xs font-bold">${idx + 1}</span>
+                        <span class="flex-1">${opt}</span>
+                    </button>
+                `;
+            });
+
+            body.innerHTML = `
+                <p class="text-slate-300 text-sm leading-relaxed font-semibold">${site.question}</p>
+                <div class="flex flex-col gap-2.5 mt-2">
+                    ${optionsHTML}
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+        }
+
+        function checkAnswer(siteId, selectedIdx) {
+            const site = sites.find(s => s.id === siteId);
+            closeModal();
+
+            if (selectedIdx === site.correct) {
+                playSound('success');
+                gameState.researchPoints += site.rewardRP;
+                gameState.artifactsCount += 1;
+                gameState.discoveredArtifacts.push({
+                    siteId: site.id,
+                    name: site.artifactName,
+                    desc: site.artifactDesc
+                });
+                
+                renderSites();
+                renderArtifacts();
+                updateStats();
+
+                if (gameState.researchPoints >= gameState.maxResearch) {
+                    playSound('win');
+                    showNotification("כל הכבוד! סיימת את המשלחת בהצלחה!", "הצלחת לפענח את כל תעלומת פומפֵיי, גילית ממצאים מדהימים והוכחת כיצד פועלים חוקרים ומדענים אמיתיים!", "fa-trophy");
+                } else {
+                    showNotification("תשובה נכונה ומדויקת!", `חפרת בהצלחה באתר ${site.name} וגלית את הממצא: ${site.artifactName}! צברת ${site.rewardRP} נקודות מחקר.`, "fa-circle-check");
+                }
+            } else {
+                playSound('error');
+                showNotification("תשובה שגויה!", "הצוות ניתח את הנתונים בכיוון הלא נכון והממצא נפגע חלקית. נסה שוב או חקור אתר אחר.", "fa-circle-xmark");
+            }
+        }
+
+        function renderArtifacts() {
+            const list = document.getElementById('artifacts-list');
+            list.innerHTML = '';
+            if (gameState.discoveredArtifacts.length === 0) {
+                list.innerHTML = `<div class="text-center text-slate-500 text-sm py-8">טרם התגלו ממצאים. התחל בחפירות כדי למצוא פריטים עתיקים!</div>`;
+                return;
+            }
+            gameState.discoveredArtifacts.forEach(art => {
+                list.innerHTML += `
+                    <div class="bg-slate-800/80 border border-amber-500/30 p-3 rounded-2xl flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-gem"></i>
+                        </div>
+                        <div>
+                            <h5 class="font-bold text-sm text-white">${art.name}</h5>
+                            <p class="text-[11px] text-slate-400">${art.desc}</p>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function triggerRandomEvent() {
+            playSound('click');
+            const event = randomEvents[Math.floor(Math.random() * randomEvents.length)];
+            gameState.budget = Math.max(0, gameState.budget + event.costChange);
+            gameState.energy = Math.min(100, Math.max(0, gameState.energy + event.energyChange));
+            updateStats();
+
+            let icon = event.type === 'success' ? "fa-circle-check" : "fa-triangle-exclamation";
+            showNotification(event.title, `${event.desc} (השפעה על תקציב: ${event.costChange >= 0 ? '+' : ''}${event.costChange} ₪, אנרגיה: ${event.energyChange >= 0 ? '+' : ''}${event.energyChange}%)`, icon);
+        }
+
+        function restTeam() {
+            playSound('success');
+            gameState.energy = 100;
+            gameState.budget = Math.max(0, gameState.budget - 200); // Small coffee/rest cost
+            updateStats();
+            showNotification("הפסקת קפה ומנוחה לצוות", "אנשי הצוות נחו, שתו קפה רענן, וטעינת האנרגיה חזרה ל-100%! (עלות הפסקה: 200 ₪)", "fa-mug-hot");
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+
+        function showNotification(title, msg, iconClass) {
+            document.getElementById('notif-title').innerText = title;
+            document.getElementById('notif-message').innerText = msg;
+            document.getElementById('notif-icon').innerHTML = `<i class="fa-solid ${iconClass}"></i>`;
+            document.getElementById('notification-modal').classList.remove('hidden');
+        }
+
+        function closeNotification() {
+            document.getElementById('notification-modal').classList.add('hidden');
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            renderSites();
+            renderTeam();
+            updateStats();
+        };
+    </script>
+
+</body>
+</html>
